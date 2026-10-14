@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import { env } from "../env.js";
-import { detectOllama, resolveMode } from "../services/ollama.js";
+import { detectOllama, getLoadedModelContextLength, resolveMode } from "../services/ollama.js";
 import type { HealthResponse } from "@shared/types.js";
 
 export const healthRoute = new Hono();
 
 healthRoute.get("/", async (c) => {
-  const d = await detectOllama();
+  const [d, contextLength] = await Promise.all([detectOllama(), getLoadedModelContextLength()]);
   const forcedFallback = process.env.FORCE_FALLBACK === "true" || env.FORCE_FALLBACK;
   const mode = forcedFallback ? "fallback" : ((await resolveMode()) as HealthResponse["mode"]);
   const body: HealthResponse = {
@@ -19,6 +19,7 @@ healthRoute.get("/", async (c) => {
     forcedFallback,
     sentryEnabled: Boolean(process.env.SENTRY_DSN?.trim()),
     availableModels: d.models,
+    contextLength,
   };
   return c.json(body);
 });

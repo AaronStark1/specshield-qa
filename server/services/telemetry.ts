@@ -92,10 +92,11 @@ export async function withAgentSpan<T>(
   fn: (api: {
     setUsage: (inputTokens: number, outputTokens: number) => void;
     setStatus: (status: "success" | "fallback" | "error") => void;
+    setAttribute: (name: string, value: unknown) => void;
   }) => Promise<T>
 ): Promise<T> {
   if (!isSentryOn()) {
-    return fn({ setUsage: () => undefined, setStatus: () => undefined });
+    return fn({ setUsage: () => undefined, setStatus: () => undefined, setAttribute: () => undefined });
   }
   try {
     return await Sentry.startSpan(
@@ -122,6 +123,9 @@ export async function withAgentSpan<T>(
           setStatus: (status: "success" | "fallback" | "error") => {
             setAttrs(span, { "specshield.step_status": status });
           },
+          setAttribute: (name: string, value: unknown) => {
+            setAttrs(span, { [name]: value });
+          },
         };
         try {
           const out = await fn(api);
@@ -137,7 +141,7 @@ export async function withAgentSpan<T>(
       }
     );
   } catch {
-    return fn({ setUsage: () => undefined, setStatus: () => undefined });
+    return fn({ setUsage: () => undefined, setStatus: () => undefined, setAttribute: () => undefined });
   }
 }
 

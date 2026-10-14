@@ -2,8 +2,7 @@ import type { ParsedRequirements, TestCase, TestCategory, Priority } from "@shar
 
 function prefixFor(title: string): string {
   const upper = title.toUpperCase();
-  if (upper.includes("VENDOR")) return "VND";
-  if (upper.includes("KAM")) return "VND";
+  if (upper.includes("INVOICE")) return "FIT";
   const letters = title.replace(/[^A-Za-z]/g, "");
   const p = (letters.slice(0, 3) || "SPC").toUpperCase();
   return p.padEnd(3, "X").slice(0, 3);

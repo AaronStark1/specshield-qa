@@ -14,7 +14,7 @@ export function LoadSampleButton() {
         setTitle(SAMPLE_SPEC_TITLE);
       }}
     >
-      <FileUp size={15} /> Load Sample Enterprise Spec
+      <FileUp size={15} /> Load Sample Spec (Invoice Tracker)
     </GhostButton>
   );
 }
@@ -31,7 +31,7 @@ export function RunControls() {
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="e.g. Vendor Onboarding v2.3"
+          placeholder="e.g. Invoice Tracker v1.0"
           className="mt-1 w-full rounded-lg border border-[#1f2937] bg-black/30 px-2 py-1.5 text-sm text-white placeholder:text-[#6b7280]"
         />
       </label>

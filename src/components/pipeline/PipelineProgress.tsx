@@ -33,7 +33,14 @@ export function AgentStepCard({ step }: { step: TelemetryStep }) {
       </div>
       <div className="mt-2 font-mono text-[11px] text-[#9ca3af]">
         {running ? (
-          <span>{(elapsed / 1000).toFixed(1)}s elapsed…</span>
+          <div>
+            <div>{(elapsed / 1000).toFixed(1)}s elapsed…</div>
+            {step.progress && (
+              <div className="text-[10px] text-violet-300">
+                ≈ {step.progress.outputTokens} tokens · {step.progress.tokensPerSecond} tok/s
+              </div>
+            )}
+          </div>
         ) : step.durationMs != null ? (
           <span>{formatDuration(step.durationMs)} · in {formatTokens(step.inputTokens)} · out {formatTokens(step.outputTokens)} tokens</span>
         ) : (

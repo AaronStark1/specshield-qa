@@ -19,6 +19,7 @@ export function TelemetryDrawer({ steps, traceId }: { steps: TelemetryStep[]; tr
               <strong>{s.agentName}</strong>
               <Badge tone={s.status === "success" ? "emerald" : s.status === "fallback" ? "amber" : "gray"}>{s.status}</Badge>
               <Badge tone={s.mode === "gemma" ? "violet" : "amber"}>{s.mode}</Badge>
+              {s.codegenStrategy && <Badge tone="sky">strategy: {s.codegenStrategy}</Badge>}
               <span className="font-mono text-[#9ca3af]">{s.model || "—"}</span>
               <span className="ml-auto font-mono text-[#9ca3af]">{formatDuration(s.durationMs)} · in {formatTokens(s.inputTokens)} / out {formatTokens(s.outputTokens)}</span>
             </div>

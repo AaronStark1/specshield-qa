@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { SAMPLE_SPEC } from "@shared/sampleSpec.js";
 import type { ParsedRequirements, PlaywrightSuite, TestCase } from "@shared/types.js";
-import { generatePlaywright } from "./generatePlaywright.js";
 
 export function specHash(spec: string): string {
   return createHash("sha256").update(spec.trim()).digest("hex");
@@ -13,122 +12,447 @@ export function isSampleSpec(spec: string): boolean {
 
 function cannedRequirements(): ParsedRequirements {
   return {
-    title: "Enterprise Vendor Onboarding & KAM Site Survey Portal",
+    title: "Freelancer Invoice Tracker",
     summary:
-      "Self-service vendor onboarding replacing email and spreadsheets: registration with corporate email and per-country tax validation, document upload with expiry and virus scan, masked bank details with mod-97 IBAN checks, scored KAM site surveys with geo-tagged photos, two-stage approval with SLAs and segregation of duties, and an immutable audit log with reporting.",
+      "Invoice tracking studio for solo freelancers to manage clients, issue multi-line invoices, record payments, share unguessable public payment links, automate overdue reminders, and provide accountants with CSV exports under strict server-side RBAC.",
     roles: [
-      { name: "Vendor Admin", description: "External supplier user who registers the company, uploads documents and tracks status." },
-      { name: "Key Account Manager (KAM)", description: "Internal; performs on-site surveys, scores the vendor, recommends approval." },
-      { name: "Procurement Reviewer", description: "Internal; validates commercial terms and bank details; first-stage approver." },
-      { name: "Compliance Officer", description: "Internal; validates certifications and sanctions screening; final approver." },
-      { name: "System Administrator", description: "Manages users, roles, country configurations and retention policies." },
+      { name: "Freelancer", description: "Owns the account, creates clients and invoices, records payments." },
+      { name: "Client", description: "External customer; receives a public invoice link and can mark an invoice as 'Payment Sent'." },
+      { name: "Accountant", description: "Read-only access to all invoices and a CSV export." },
     ],
     features: [
-      { id: "FR-REG", name: "Vendor Registration", description: "Corporate-email signup, password rules, verification expiry, legal name and per-country tax ID validation.", roles: ["Vendor Admin", "System Administrator"] },
-      { id: "FR-DOC", name: "Document Upload", description: "Required document set, 10 MB / 8-file limits, expiry flags, virus scan quarantine and replacement rules.", roles: ["Vendor Admin", "Procurement Reviewer"] },
-      { id: "FR-BNK", name: "Bank Details", description: "Holder-name match, mod-97 IBAN validation, re-verification on change, masked views except procurement panel.", roles: ["Vendor Admin", "Procurement Reviewer"] },
-      { id: "FR-SRV", name: "KAM Site Survey", description: "5 scored sections 0–5, weighted 0–100 overall, geo-tagged photos, offline autosave, CAP and justification gates.", roles: ["Key Account Manager (KAM)"] },
-      { id: "FR-APR", name: "Approval Workflow", description: "Draft to Approved lifecycle, 5-day and 3-day SLAs with escalation, segregation of duties, rejection and ERP webhook.", roles: ["Procurement Reviewer", "Compliance Officer"] },
-      { id: "FR-AUD", name: "Audit Log & Reporting", description: "Immutable audit entries, CSV export, funnel / cycle-time / SLA / rejection dashboard.", roles: ["Compliance Officer", "System Administrator"] },
+      { id: "FR-AUTH", name: "Authentication", description: "Freelancer signup, password rules, failed login lockout, and session inactivity expiry.", roles: ["Freelancer", "Accountant"] },
+      { id: "FR-CLI", name: "Clients", description: "Client creation with currency support, uniqueness validation per email, and deletion guards for unpaid invoices.", roles: ["Freelancer"] },
+      { id: "FR-INV", name: "Invoices", description: "Line items calculation, due date rules, sequential numbering INV-{YEAR}-{4 digits}, draft lifecycle, and public link generation.", roles: ["Freelancer", "Client", "Accountant"] },
+      { id: "FR-PAY", name: "Payments & Reminders", description: "Payment recording, balance validation, automated overdue transitions with reminder schedule, and client payment notification.", roles: ["Freelancer", "Client"] },
+      { id: "FR-EXP", name: "Export", description: "CSV export of all invoices for date ranges up to 12 months for accountant review.", roles: ["Accountant"] },
+      { id: "NFR", name: "Security, Performance & Accessibility", description: "Role-based 403 on write endpoints, unguessable 32-char tokens, script injection prevention, sub-500ms load, keyboard navigation.", roles: ["Freelancer", "Client", "Accountant"] },
     ],
     acceptanceCriteria: [
-      { id: "FR-REG-01", featureId: "FR-REG", text: "Vendor Admin creates an account with corporate email, password and company name; gmail.com, yahoo.com, outlook.com, hotmail.com rejected with 'Please use a corporate email address'." },
-      { id: "FR-REG-02", featureId: "FR-REG", text: "Passwords must be 12–64 characters and include at least one uppercase letter, one digit and one symbol." },
-      { id: "FR-REG-03", featureId: "FR-REG", text: "Email verification link expires after 24 hours; expired link shows a 'Resend verification' action." },
-      { id: "FR-REG-04", featureId: "FR-REG", text: "Company legal name required, 2–120 characters; duplicate names within the same country warn but do not block." },
-      { id: "FR-REG-05", featureId: "FR-REG", text: "Tax identifier validated per country: India GSTIN 15 chars, EU VAT prefix + 8–12 alphanumerics, US EIN ^\\d{2}-\\d{7}$; other countries free text up to 32 chars." },
-      { id: "FR-DOC-01", featureId: "FR-DOC", text: "Required documents: Certificate of Incorporation, Tax Registration, Bank Confirmation Letter, ISO 9001 (optional under USD 50,000)." },
-      { id: "FR-DOC-02", featureId: "FR-DOC", text: "Accepted formats PDF, JPG, PNG; max 10 MB per file, max 8 files per type; over-limit shows 'File exceeds 10 MB limit' without starting upload." },
-      { id: "FR-DOC-03", featureId: "FR-DOC", text: "Documents expiring within 30 days flagged amber; expired documents block submission." },
-      { id: "FR-DOC-04", featureId: "FR-DOC", text: "Uploads virus-scanned asynchronously; infected files quarantined, vendor notified, submission blocked until replaced." },
-      { id: "FR-BNK-01", featureId: "FR-BNK", text: "Account holder name must match company legal name case-insensitive ignoring punctuation; currency is ISO 4217." },
-      { id: "FR-BNK-02", featureId: "FR-BNK", text: "IBAN validated with mod-97 checksum; invalid IBANs show 'IBAN checksum failed'." },
-      { id: "FR-BNK-03", featureId: "FR-BNK", text: "Bank-detail change after approval moves vendor to 'Re-verification Required' and notifies Procurement within 5 minutes." },
-      { id: "FR-BNK-04", featureId: "FR-BNK", text: "Bank details masked except in Procurement Reviewer detail panel (last 4 visible elsewhere)." },
-      { id: "FR-SRV-02", featureId: "FR-SRV", text: "Survey has 5 sections of 4–8 questions scored 0–5; section score = average × 20; overall = weighted average (15/30/25/15/15), 0–100." },
-      { id: "FR-SRV-03", featureId: "FR-SRV", text: "Each section requires one geo-tagged photo within 500 m of registered address; outside radius flagged 'Location mismatch'." },
-      { id: "FR-SRV-05", featureId: "FR-SRV", text: "Score below 60 creates a Corrective Action Plan due in 45 days; 60–74 needs 200-char KAM justification; 75+ submits directly." },
-      { id: "FR-APR-02", featureId: "FR-APR", text: "Procurement SLA 5 business days, Compliance SLA 3 business days; breaches email the manager and show a red SLA badge." },
-      { id: "FR-APR-04", featureId: "FR-APR", text: "Rejection needs a listed reason plus 20-char free text; reapply after 90 days." },
-      { id: "FR-APR-05", featureId: "FR-APR", text: "Approval generates Vendor ID VND-{COUNTRY}-{6 digits}, emails the admin and pushes to ERP webhook with 3 retries (1/5/25 min)." },
-      { id: "FR-AUD-01", featureId: "FR-AUD", text: "Every state change, upload, edit and login records actor, UTC timestamp, IP and before/after; entries immutable." },
-      { id: "NFR-SEC-02", featureId: "FR-AUD", text: "Sessions expire after 30 minutes of inactivity with a 2-minute warning modal." },
-      { id: "NFR-SEC-03", featureId: "FR-AUD", text: "Login rate-limited to 5 failed attempts per 15 minutes, then locked 30 minutes with unlock email." },
-      { id: "NFR-SEC-05", featureId: "FR-AUD", text: "Inputs sanitised against injection (OWASP Top 10); free text renders as plain text, never HTML." },
+      { id: "FR-AUTH-01", featureId: "FR-AUTH", text: "Freelancers sign up with email and password. Passwords must be 8–64 characters with at least one number." },
+      { id: "FR-AUTH-02", featureId: "FR-AUTH", text: "After 5 failed logins within 10 minutes the account is locked for 15 minutes." },
+      { id: "FR-AUTH-03", featureId: "FR-AUTH", text: "Sessions expire after 60 minutes of inactivity." },
+      { id: "FR-CLI-01", featureId: "FR-CLI", text: "A client has a name (required, 2–80 characters), email (required, valid format) and currency (USD, EUR, GBP or INR)." },
+      { id: "FR-CLI-02", featureId: "FR-CLI", text: "Two clients cannot share the same email within one freelancer account; the error is 'A client with this email already exists'." },
+      { id: "FR-CLI-03", featureId: "FR-CLI", text: "A client with unpaid invoices cannot be deleted; the delete button is disabled with a tooltip." },
+      { id: "FR-INV-01", featureId: "FR-INV", text: "An invoice has a client, issue date, due date, 1–50 line items and an optional note (max 500 characters)." },
+      { id: "FR-INV-02", featureId: "FR-INV", text: "Each line item has a description (required), quantity (1–999) and unit price (0.01–1,000,000.00). Total is computed and shown to 2 decimals." },
+      { id: "FR-INV-03", featureId: "FR-INV", text: "Due date must be on or after the issue date and no more than 180 days after it." },
+      { id: "FR-INV-04", featureId: "FR-INV", text: "Invoice numbers are generated as INV-{YEAR}-{4 digits}, sequential per freelancer, never reused." },
+      { id: "FR-INV-05", featureId: "FR-INV", text: "Status lifecycle: Draft → Sent → Paid | Overdue | Cancelled. Only Draft invoices can be edited." },
+      { id: "FR-INV-06", featureId: "FR-INV", text: "Sending an invoice emails the client a public link. The link expires 90 days after the due date." },
+      { id: "FR-PAY-01", featureId: "FR-PAY", text: "A freelancer records a payment with amount and date. Partial payments are allowed; the invoice becomes Paid when the sum of payments equals the total." },
+      { id: "FR-PAY-02", featureId: "FR-PAY", text: "A payment cannot exceed the remaining balance; the error is 'Amount exceeds outstanding balance'." },
+      { id: "FR-PAY-03", featureId: "FR-PAY", text: "Invoices unpaid 1 day after the due date become Overdue automatically and the client receives a reminder email at +1, +7 and +14 days." },
+      { id: "FR-PAY-04", featureId: "FR-PAY", text: "The Client can click 'Payment Sent' on the public link, which notifies the freelancer but does not change the status." },
+      { id: "FR-EXP-01", featureId: "FR-EXP", text: "Accountants can export all invoices for a date range as CSV. The export is limited to 12 months per request." },
+      { id: "NFR-SEC-01", featureId: "NFR", text: "Role-based access enforced on the server; Accountants receive 403 on any write endpoint." },
+      { id: "NFR-SEC-02", featureId: "NFR", text: "The public invoice link uses an unguessable 32-character token and shows no other client data." },
+      { id: "NFR-SEC-03", featureId: "NFR", text: "All free-text fields are rendered as plain text to prevent script injection." },
+      { id: "NFR-PERF-01", featureId: "NFR", text: "Invoice list loads within 500 ms for 2,000 invoices." },
+      { id: "NFR-A11Y-01", featureId: "NFR", text: "All forms are keyboard-navigable with visible focus states." },
     ],
     fields: [
-      { name: "corporateEmail", type: "email", required: true, constraints: ["must not be gmail.com/yahoo.com/outlook.com/hotmail.com"], featureId: "FR-REG" },
-      { name: "password", type: "password", required: true, constraints: ["12–64 characters", "1 uppercase", "1 digit", "1 symbol"], featureId: "FR-REG" },
-      { name: "companyLegalName", type: "string", required: true, constraints: ["2–120 characters", "duplicate warns within country"], featureId: "FR-REG" },
-      { name: "taxIdentifier", type: "string", required: true, constraints: ["GSTIN 15 chars", "EU VAT 8–12 alphanumerics", "US EIN ^\\d{2}-\\d{7}$", "other max 32 chars"], featureId: "FR-REG" },
-      { name: "documentFile", type: "file", required: true, constraints: ["PDF/JPG/PNG", "10 MB per file", "8 files per type"], featureId: "FR-DOC" },
-      { name: "documentExpiryDate", type: "date", required: true, constraints: ["amber within 30 days", "expired blocks submission"], featureId: "FR-DOC" },
-      { name: "accountHolderName", type: "string", required: true, constraints: ["must match legal name, case-insensitive"], featureId: "FR-BNK" },
-      { name: "iban", type: "string", required: true, constraints: ["mod-97 checksum", "'IBAN checksum failed' on error"], featureId: "FR-BNK" },
-      { name: "sitePhoto", type: "file", required: true, constraints: ["geo-tagged", "within 500 m", "1 per section min"], featureId: "FR-SRV" },
-      { name: "justificationNote", type: "text", required: false, constraints: ["min 200 characters when score 60–74"], featureId: "FR-SRV" },
-      { name: "rejectionReason", type: "text", required: false, constraints: ["from list + min 20 chars free text"], featureId: "FR-APR" },
-      { name: "vendorId", type: "string", required: false, constraints: ["VND-{COUNTRY}-{6 digits}"], featureId: "FR-APR" },
+      { name: "password", type: "password", required: true, constraints: ["8–64 characters", "at least one number"], featureId: "FR-AUTH" },
+      { name: "clientName", type: "string", required: true, constraints: ["2–80 characters"], featureId: "FR-CLI" },
+      { name: "clientEmail", type: "email", required: true, constraints: ["valid email format", "unique per freelancer account"], featureId: "FR-CLI" },
+      { name: "currency", type: "string", required: true, constraints: ["USD, EUR, GBP or INR"], featureId: "FR-CLI" },
+      { name: "lineItems", type: "array", required: true, constraints: ["1–50 line items"], featureId: "FR-INV" },
+      { name: "lineDescription", type: "string", required: true, constraints: ["required"], featureId: "FR-INV" },
+      { name: "quantity", type: "number", required: true, constraints: ["1–999"], featureId: "FR-INV" },
+      { name: "unitPrice", type: "number", required: true, constraints: ["0.01–1,000,000.00", "2 decimal precision"], featureId: "FR-INV" },
+      { name: "note", type: "text", required: false, constraints: ["max 500 characters", "rendered as plain text"], featureId: "FR-INV" },
+      { name: "issueDate", type: "date", required: true, constraints: ["valid ISO date"], featureId: "FR-INV" },
+      { name: "dueDate", type: "date", required: true, constraints: ["on or after issue date", "max 180 days after issue"], featureId: "FR-INV" },
+      { name: "paymentAmount", type: "number", required: true, constraints: ["positive number", "cannot exceed remaining balance"], featureId: "FR-PAY" },
+      { name: "paymentDate", type: "date", required: true, constraints: ["valid ISO date"], featureId: "FR-PAY" },
+      { name: "exportDateRange", type: "daterange", required: true, constraints: ["max 12 months per request"], featureId: "FR-EXP" },
     ],
     validationRules: [
-      { id: "VR-01", rule: "Free-mail domains rejected with 'Please use a corporate email address'.", featureId: "FR-REG" },
-      { id: "VR-02", rule: "Password 12–64 chars with uppercase, digit and symbol.", featureId: "FR-REG" },
-      { id: "VR-03", rule: "Verification link expires after 24 hours.", featureId: "FR-REG" },
-      { id: "VR-04", rule: "GSTIN/EIN/VAT patterns enforced per country; 32-char free text otherwise.", featureId: "FR-REG" },
-      { id: "VR-05", rule: "Files over 10 MB show 'File exceeds 10 MB limit' without starting upload; max 8 per type.", featureId: "FR-DOC" },
-      { id: "VR-06", rule: "IBAN mod-97 checksum; failures show 'IBAN checksum failed'.", featureId: "FR-BNK" },
-      { id: "VR-07", rule: "Survey score gates: <60 CAP in 45 days; 60–74 needs 200-char note; 75+ direct submit.", featureId: "FR-SRV" },
-      { id: "VR-08", rule: "Rejection needs listed reason + 20-char text; reapply after 90 days.", featureId: "FR-APR" },
-      { id: "VR-09", rule: "Login 5 failures/15 min locks 30 min with unlock email.", featureId: "FR-AUD" },
-      { id: "VR-10", rule: "Sessions expire after 30 min idle with 2-min warning.", featureId: "FR-AUD" },
+      { id: "VR-01", rule: "Password must be 8–64 characters with at least one number.", featureId: "FR-AUTH" },
+      { id: "VR-02", rule: "Lockout after 5 failed logins within 10 minutes for 15 minutes.", featureId: "FR-AUTH" },
+      { id: "VR-03", rule: "Duplicate client email within one account rejected with 'A client with this email already exists'.", featureId: "FR-CLI" },
+      { id: "VR-04", rule: "Client with unpaid invoices cannot be deleted (button disabled with tooltip).", featureId: "FR-CLI" },
+      { id: "VR-05", rule: "Due date must be on or after issue date and within 180 days.", featureId: "FR-INV" },
+      { id: "VR-06", rule: "Invoice line items limited to 1–50; quantity 1–999; unit price 0.01–1,000,000.00.", featureId: "FR-INV" },
+      { id: "VR-07", rule: "Only Draft invoices can be edited; Sent/Paid/Overdue/Cancelled invoices are read-only.", featureId: "FR-INV" },
+      { id: "VR-08", rule: "Payment amount cannot exceed remaining balance with 'Amount exceeds outstanding balance'.", featureId: "FR-PAY" },
+      { id: "VR-09", rule: "Export range is limited to 12 months per request.", featureId: "FR-EXP" },
+      { id: "VR-10", rule: "Accountants receive 403 Forbidden on write endpoints.", featureId: "NFR" },
     ],
     securitySurfaces: [
-      "Role-based access control enforced server-side",
-      "Login rate-limiting and account lockout (5 failed / 15 min)",
-      "Session expiry after 30 minutes with 2-minute warning",
-      "File upload validation, virus scan and quarantine",
-      "Masked bank details except for privileged role",
-      "Input sanitisation against injection (OWASP Top 10)",
-      "Encrypted storage for uploads at rest",
-      "Signed, expiring download links (10 minutes)",
-      "Immutable audit log with actor, timestamp, IP",
-      "Segregation of duties on approval",
+      "Role-based access control (Accountants receive 403 on write endpoints)",
+      "Account lockout after 5 failed logins within 10 minutes (locked 15 min)",
+      "Session expiration after 60 minutes of inactivity",
+      "Unguessable 32-character token for public invoice links",
+      "Public invoice link expiration (90 days after due date)",
+      "Script injection prevention (all free-text rendered as plain text)",
     ],
   };
 }
 
 function cannedTestCases(): TestCase[] {
   const T: TestCase[] = [
-    { id: "VND-FUNC-001", featureId: "FR-REG", category: "Functional", title: "Vendor registers with corporate email and valid GSTIN", given: "a new Vendor Admin on the registration page", when: "they submit corporate email ops@shakti-metals.in, password Str0ng!Passw0rd-12, legal name Shakti Metals Pvt Ltd and GSTIN 27AAPFU0939F1ZV", then: "the account is created, a verification email is queued and status becomes Draft", priority: "P0", expectedResult: "Account created; verification email sent within 1 minute", tags: ["functional", "registration", "happy-path"] },
-    { id: "VND-FUNC-002", featureId: "FR-DOC", category: "Functional", title: "Vendor uploads all required documents under limits", given: "a Draft vendor with 4 valid files (PDF under 10 MB each)", when: "they upload Certificate of Incorporation, Tax Registration, Bank Letter and ISO 9001 with expiry dates 12 months out", then: "all files reach 100%, virus scan passes and status becomes Documents Complete", priority: "P0", expectedResult: "Documents Complete; no amber flags", tags: ["functional", "documents"] },
-    { id: "VND-FUNC-003", featureId: "FR-BNK", category: "Functional", title: "Valid IBAN passes mod-97 and is stored masked", given: "a vendor with legal name Meridian Coatings GmbH", when: "they enter IBAN DE89370400440532013000 matching holder name", then: "validation passes and the stored record masks all but the last 4", priority: "P0", expectedResult: "IBAN accepted; masked as ••••3000 except procurement panel", tags: ["functional", "bank"] },
-    { id: "VND-FUNC-004", featureId: "FR-SRV", category: "Functional", title: "KAM completes a 5-section survey scoring 82", given: "a vendor in Documents Complete with the KAM on site", when: "the KAM answers all sections, attaches 5 geo-tagged photos and submits at overall 82", then: "the survey submits directly with no justification gate", priority: "P0", expectedResult: "Survey Submitted at score 82", tags: ["functional", "survey"] },
-    { id: "VND-FUNC-005", featureId: "FR-APR", category: "Functional", title: "Two-stage approval issues VND-IN-482913 and pushes ERP", given: "a Survey Submitted vendor with passing scores", when: "Procurement approves on day 2 and Compliance approves on day 1", then: "Vendor ID VND-IN-482913 is issued, the admin is emailed and the ERP webhook succeeds", priority: "P0", expectedResult: "Approved; Vendor ID issued; webhook 200 on first try", tags: ["functional", "approval"] },
-    { id: "VND-FUNC-006", featureId: "FR-AUD", category: "Functional", title: "Compliance exports the audit log as CSV", given: "a Compliance Officer viewing vendor VND-IN-482913", when: "they export the audit log for Q3 filtered by India", then: "a CSV downloads and the export itself is appended to the audit log", priority: "P1", expectedResult: "CSV with actor, UTC timestamp, IP, before/after; export audited", tags: ["functional", "audit"] },
-    { id: "VND-FUNC-007", featureId: "FR-REG", category: "Functional", title: "Duplicate legal name warns but does not block", given: "an existing Shakti Metals Pvt Ltd in India", when: "a second admin registers the same legal name in India", then: "an inline warning appears and registration continues", priority: "P1", expectedResult: "Warning shown; registration allowed", tags: ["functional", "registration"] },
-    { id: "VND-FUNC-008", featureId: "FR-SRV", category: "Functional", title: "Offline survey autosaves and syncs keeping latest", given: "a KAM offline with 30-second autosave on", when: "they answer 12 questions offline then reconnect after a reviewer edit", then: "the latest timestamp wins and both versions are logged", priority: "P1", expectedResult: "Sync keeps latest; conflict log has both versions", tags: ["functional", "offline"] },
-    { id: "VND-BND-001", featureId: "FR-REG", category: "Boundary", title: "11-character password is rejected, 12 accepted", given: "the registration form", when: "the user tries Str0ng!Pw-1 (11 chars) then Str0ng!Pass-1 (12 chars)", then: "the first is rejected and the second passes complexity", priority: "P1", expectedResult: "Min 12 enforced", tags: ["boundary", "password"] },
-    { id: "VND-BND-002", featureId: "FR-REG", category: "Boundary", title: "121-character legal name rejected, 120 accepted", given: "the company name field", when: "the user enters 121 chars then exactly 120 chars", then: "121 is rejected, 120 is accepted", priority: "P1", expectedResult: "Max 120 enforced", tags: ["boundary", "legal-name"] },
-    { id: "VND-BND-003", featureId: "FR-DOC", category: "Boundary", title: "11 MB PDF rejected before upload starts", given: "an 11 MB PDF on the document step", when: "the vendor selects the file", then: "the UI shows File exceeds 10 MB limit with zero bytes uploaded", priority: "P1", expectedResult: "10 MB cap enforced pre-upload", tags: ["boundary", "upload"] },
-    { id: "VND-BND-004", featureId: "FR-DOC", category: "Boundary", title: "9th file of one type is blocked at 8", given: "8 incorporation files already attached", when: "the vendor adds a 9th", then: "the 9th is refused with a count message", priority: "P2", expectedResult: "Max 8 per type enforced", tags: ["boundary", "upload"] },
-    { id: "VND-BND-005", featureId: "FR-SRV", category: "Boundary", title: "Survey score 59 triggers CAP, 60 needs note, 75 direct", given: "three identical surveys rescored at 59, 60 and 75", when: "the KAM submits each", then: "59 creates a 45-day CAP task, 60 requires a 200-char note, 75 submits directly", priority: "P1", expectedResult: "Score gates 60/75 enforced", tags: ["boundary", "scoring"] },
-    { id: "VND-BND-006", featureId: "FR-APR", category: "Boundary", title: "19-char rejection text rejected, 20 accepted", given: "a reviewer rejecting a vendor", when: "they type 19 chars then 20 chars of free text", then: "19 is rejected, 20 with a listed reason submits", priority: "P2", expectedResult: "Min 20 enforced", tags: ["boundary", "rejection"] },
-    { id: "VND-NEG-001", featureId: "FR-REG", category: "Negative", title: "gmail.com address rejected with corporate message", given: "the registration form", when: "the user enters ops.shakti@gmail.com", then: "submission is blocked with Please use a corporate email address", priority: "P0", expectedResult: "Free-mail rejected with exact message", tags: ["negative", "email"] },
-    { id: "VND-NEG-002", featureId: "FR-REG", category: "Negative", title: "Invalid GSTIN 27AAPFU0939F1ZA rejected", given: "an Indian vendor form", when: "the user enters GSTIN 27AAPFU0939F1ZA (bad checksum char)", then: "the field errors and submission is blocked", priority: "P1", expectedResult: "GSTIN pattern enforced", tags: ["negative", "tax"] },
-    { id: "VND-NEG-003", featureId: "FR-REG", category: "Negative", title: "Expired verification link offers resend", given: "a 25-hour-old verification link", when: "the vendor opens it", then: "a Resend verification action appears and a new link works", priority: "P1", expectedResult: "24-hour expiry with resend", tags: ["negative", "verification"] },
-    { id: "VND-NEG-004", featureId: "FR-DOC", category: "Negative", title: "Expired certificate blocks submission", given: "a Tax Registration expired yesterday", when: "the vendor tries to mark Documents Complete", then: "submission is blocked until the document is replaced", priority: "P0", expectedResult: "Expired doc blocks", tags: ["negative", "expiry"] },
-    { id: "VND-NEG-005", featureId: "FR-BNK", category: "Negative", title: "IBAN DE89370400440532013001 fails checksum", given: "the bank details form", when: "the user enters IBAN DE89370400440532013001 (bad check digits)", then: "the UI shows IBAN checksum failed", priority: "P1", expectedResult: "mod-97 enforced with exact message", tags: ["negative", "iban"] },
-    { id: "VND-NEG-006", featureId: "FR-APR", category: "Negative", title: "Self-approval by surveying KAM is denied", given: "a KAM who performed the site survey", when: "they attempt to approve the same vendor", then: "approval is denied for segregation of duties", priority: "P0", expectedResult: "SoD enforced", tags: ["negative", "sod"] },
-    { id: "VND-SEC-001", featureId: "FR-REG", category: "Security", title: "6th failed login in 15 minutes locks account 30 min", given: "an account with 5 failed logins in the last 15 minutes", when: "the attacker fails a 6th time", then: "the account locks for 30 minutes and an unlock email is sent", priority: "P0", expectedResult: "Lockout + unlock email", tags: ["security", "rate-limit"] },
-    { id: "VND-SEC-002", featureId: "FR-DOC", category: "Security", title: "Infected file quarantined and blocks submission", given: "an upload flagged by the virus scanner", when: "the vendor uploads EICAR-test-flagged sample.pdf", then: "the file is quarantined, the vendor is notified and submission stays blocked", priority: "P0", expectedResult: "Quarantine + notify + block", tags: ["security", "upload"] },
-    { id: "VND-SEC-003", featureId: "FR-BNK", category: "Security", title: "Vendor Admin cannot read full IBAN via API", given: "a Vendor Admin session", when: "they GET /api/vendors/VND-IN-482913/bank-details", then: "the response masks all but the last 4 and the attempt is logged", priority: "P1", expectedResult: "Masked except procurement panel", tags: ["security", "rbac"] },
-    { id: "VND-SEC-004", featureId: "FR-AUD", category: "Security", title: "Script input stored sanitised and rendered inert", given: "a free-text field", when: "the user submits <script>alert(1)</script>", then: "the value renders as plain text and no script executes", priority: "P1", expectedResult: "OWASP sanitisation", tags: ["security", "injection"] },
-    { id: "VND-SEC-005", featureId: "FR-AUD", category: "Security", title: "30-minute idle expiry with 2-minute warning", given: "a session idle for 28 minutes", when: "the user keeps idling", then: "a warning modal offers extension; at 30 min the session ends", priority: "P2", expectedResult: "Idle expiry + warning", tags: ["security", "session"] },
-    { id: "VND-SEC-006", featureId: "FR-DOC", category: "Security", title: "11-minute-old download link is denied", given: "a signed document link issued 11 minutes ago", when: "the vendor opens it", then: "access is denied and a fresh link must be issued", priority: "P2", expectedResult: "10-minute signed links", tags: ["security", "signed-url"] },
-    { id: "VND-FUNC-009", featureId: "FR-SRV", category: "Functional", title: "Photo 600 m away accepted but flagged", given: "a section photo taken 600 m from the registered address", when: "the KAM attaches it", then: "the photo is accepted with a Location mismatch flag", priority: "P2", expectedResult: "500 m radius with flag", tags: ["functional", "geo"] },
-    { id: "VND-FUNC-010", featureId: "FR-APR", category: "Functional", title: "SLA breach escalates and shows red badge", given: "a procurement review open for 6 business days", when: "the dashboard renders", then: "a red SLA badge shows and the manager has an escalation email", priority: "P2", expectedResult: "5-day/3-day SLA escalation", tags: ["functional", "sla"] },
-    { id: "VND-NEG-007", featureId: "FR-BNK", category: "Negative", title: "Post-approval bank change triggers re-verification", given: "an Approved vendor", when: "bank details change at T+0", then: "status becomes Re-verification Required and Procurement is notified within 5 minutes", priority: "P1", expectedResult: "Re-verification + 5-min notify", tags: ["negative", "bank-change"] },
-    { id: "VND-SEC-007", featureId: "FR-APR", category: "Security", title: "Reviewer cannot approve own registration", given: "a reviewer who registered the vendor", when: "they attempt first-stage approval", then: "approval is denied for segregation of duties", priority: "P1", expectedResult: "SoD on registration", tags: ["security", "sod"] },
+    {
+      id: "FIT-FUNC-001",
+      featureId: "FR-AUTH",
+      category: "Functional",
+      title: "Freelancer signs up with valid email and password",
+      given: "a new freelancer on the signup screen",
+      when: "they provide alex@freelance.dev and Str0ngPass99 with digits",
+      then: "the account is created and the user is authenticated",
+      priority: "P0",
+      expectedResult: "Account created and dashboard accessible",
+      tags: ["functional", "auth", "signup"],
+    },
+    {
+      id: "FIT-FUNC-002",
+      featureId: "FR-CLI",
+      category: "Functional",
+      title: "Freelancer creates client with name, email and USD currency",
+      given: "an authenticated freelancer on the clients screen",
+      when: "they add Acme Corp with email billing@acme.com and currency USD",
+      then: "the client is saved and appears in the client selector",
+      priority: "P0",
+      expectedResult: "Client saved with currency USD",
+      tags: ["functional", "clients"],
+    },
+    {
+      id: "FIT-FUNC-003",
+      featureId: "FR-INV",
+      category: "Functional",
+      title: "Freelancer creates invoice with 2 items and computed total",
+      given: "an existing client Acme Corp",
+      when: "they add 2 items (Design 10h @ $100.00 and QA 5h @ $80.00)",
+      then: "total computes to $1,400.00 and invoice number INV-2026-0001 is generated",
+      priority: "P0",
+      expectedResult: "Invoice created in Draft status with total 1400.00",
+      tags: ["functional", "invoices", "calculation"],
+    },
+    {
+      id: "FIT-FUNC-004",
+      featureId: "FR-INV",
+      category: "Functional",
+      title: "Sending invoice generates public link with 32-char token",
+      given: "a Draft invoice INV-2026-0001",
+      when: "the freelancer clicks Send Invoice",
+      then: "status becomes Sent and an email is queued with an unguessable 32-char public link",
+      priority: "P0",
+      expectedResult: "Invoice status Sent; 32-char public token generated",
+      tags: ["functional", "invoices", "send"],
+    },
+    {
+      id: "FIT-FUNC-005",
+      featureId: "FR-PAY",
+      category: "Functional",
+      title: "Client clicks Payment Sent on public link",
+      given: "a client viewing invoice INV-2026-0001 via public link",
+      when: "they click Payment Sent",
+      then: "the freelancer is notified and the invoice status remains Sent",
+      priority: "P1",
+      expectedResult: "Freelancer notified; status remains Sent",
+      tags: ["functional", "payments", "public-link"],
+    },
+    {
+      id: "FIT-FUNC-006",
+      featureId: "FR-PAY",
+      category: "Functional",
+      title: "Recording partial payment reduces balance",
+      given: "a Sent invoice with total $1,400.00",
+      when: "the freelancer records a partial payment of $600.00",
+      then: "status remains Sent with outstanding balance $800.00",
+      priority: "P0",
+      expectedResult: "Remaining balance updated to 800.00",
+      tags: ["functional", "payments", "partial"],
+    },
+    {
+      id: "FIT-FUNC-007",
+      featureId: "FR-PAY",
+      category: "Functional",
+      title: "Sum of payments equaling total flips status to Paid",
+      given: "an invoice with $800.00 outstanding balance",
+      when: "the freelancer records a second payment of $800.00",
+      then: "total payments equal $1,400.00 and status flips to Paid automatically",
+      priority: "P0",
+      expectedResult: "Status flips to Paid; outstanding balance 0.00",
+      tags: ["functional", "payments", "paid"],
+    },
+    {
+      id: "FIT-FUNC-008",
+      featureId: "FR-PAY",
+      category: "Functional",
+      title: "Unpaid invoice 1 day after due date becomes Overdue",
+      given: "an invoice unpaid at due date + 1 day",
+      when: "the overnight reminder job executes",
+      then: "status flips to Overdue and reminder email is queued for +1 day",
+      priority: "P0",
+      expectedResult: "Status becomes Overdue; reminders scheduled at +1, +7, +14 days",
+      tags: ["functional", "reminders", "overdue"],
+    },
+    {
+      id: "FIT-FUNC-009",
+      featureId: "FR-EXP",
+      category: "Functional",
+      title: "Accountant exports invoices for 6-month range as CSV",
+      given: "an authenticated Accountant user",
+      when: "they request a CSV export for Jan 1 to Jun 30",
+      then: "a CSV file downloads containing all invoices in that date range",
+      priority: "P1",
+      expectedResult: "CSV downloaded with invoice records and totals",
+      tags: ["functional", "export", "csv"],
+    },
+    {
+      id: "FIT-FUNC-010",
+      featureId: "FR-INV",
+      category: "Functional",
+      title: "Sequential invoice numbering never reuses cancelled number",
+      given: "invoice INV-2026-0002 cancelled by the freelancer",
+      when: "they create the next invoice",
+      then: "the new invoice is assigned INV-2026-0003 and 0002 is never reused",
+      priority: "P1",
+      expectedResult: "Next number INV-2026-0003 generated sequentially",
+      tags: ["functional", "invoices", "sequence"],
+    },
+    {
+      id: "FIT-BND-001",
+      featureId: "FR-AUTH",
+      category: "Boundary",
+      title: "Password boundary 7/8 and 64/65 characters",
+      given: "the freelancer registration form",
+      when: "testing 7 chars (Passw1!), 8 chars (Passw0rd), 64 chars, and 65 chars",
+      then: "7 and 65 are rejected; 8 and 64 are accepted",
+      priority: "P1",
+      expectedResult: "Min 8 and Max 64 password length enforced",
+      tags: ["boundary", "auth", "password"],
+    },
+    {
+      id: "FIT-BND-002",
+      featureId: "FR-CLI",
+      category: "Boundary",
+      title: "Client name boundary 1/2 and 80/81 characters",
+      given: "the client creation form",
+      when: "entering 1 char ('A'), 2 chars ('AB'), 80 chars, and 81 chars",
+      then: "1 and 81 characters are rejected; 2 and 80 characters are accepted",
+      priority: "P1",
+      expectedResult: "Client name 2–80 characters enforced",
+      tags: ["boundary", "clients", "name"],
+    },
+    {
+      id: "FIT-BND-003",
+      featureId: "FR-INV",
+      category: "Boundary",
+      title: "Line item quantity boundary 0/1 and 999/1000",
+      given: "an invoice line item",
+      when: "entering quantity 0, 1, 999, and 1000",
+      then: "0 and 1000 are rejected; 1 and 999 are accepted",
+      priority: "P1",
+      expectedResult: "Quantity range 1–999 enforced",
+      tags: ["boundary", "invoices", "quantity"],
+    },
+    {
+      id: "FIT-BND-004",
+      featureId: "FR-INV",
+      category: "Boundary",
+      title: "Unit price boundary 0.00/0.01 and 1,000,000.00/1,000,000.01",
+      given: "an invoice line item",
+      when: "entering unit price 0.00, 0.01, 1000000.00, and 1000000.01",
+      then: "0.00 and 1000000.01 are rejected; 0.01 and 1000000.00 are accepted",
+      priority: "P1",
+      expectedResult: "Unit price range 0.01–1,000,000.00 enforced",
+      tags: ["boundary", "invoices", "price"],
+    },
+    {
+      id: "FIT-BND-005",
+      featureId: "FR-INV",
+      category: "Boundary",
+      title: "Line items count boundary 50 vs 51 items",
+      given: "an invoice with 50 line items attached",
+      when: "the freelancer attempts to add a 51st line item",
+      then: "the 50 items save successfully but the 51st is blocked with limit error",
+      priority: "P1",
+      expectedResult: "Max 50 line items enforced",
+      tags: ["boundary", "invoices", "items"],
+    },
+    {
+      id: "FIT-BND-006",
+      featureId: "FR-INV",
+      category: "Boundary",
+      title: "Note length boundary 500 vs 501 characters",
+      given: "the invoice optional note field",
+      when: "entering exactly 500 characters then 501 characters",
+      then: "500 characters passes; 501 characters is rejected",
+      priority: "P2",
+      expectedResult: "Max 500 characters note enforced",
+      tags: ["boundary", "invoices", "note"],
+    },
+    {
+      id: "FIT-BND-007",
+      featureId: "FR-INV",
+      category: "Boundary",
+      title: "Due date range boundary 180 vs 181 days after issue",
+      given: "an invoice with issue date 2026-01-01",
+      when: "setting due date to 180 days (2026-06-30) then 181 days (2026-07-01)",
+      then: "180 days is accepted; 181 days is rejected",
+      priority: "P1",
+      expectedResult: "Due date max 180 days enforced",
+      tags: ["boundary", "invoices", "due-date"],
+    },
+    {
+      id: "FIT-BND-008",
+      featureId: "FR-EXP",
+      category: "Boundary",
+      title: "Export date range boundary 12 months vs 12 months + 1 day",
+      given: "an Accountant requesting invoice export",
+      when: "selecting 365 days range then 366 days range",
+      then: "12 months is accepted; 12 months + 1 day is rejected with date limit error",
+      priority: "P2",
+      expectedResult: "Max 12 months export limit enforced",
+      tags: ["boundary", "export", "date-range"],
+    },
+    {
+      id: "FIT-NEG-001",
+      featureId: "FR-CLI",
+      category: "Negative",
+      title: "Duplicate client email within account rejected",
+      given: "an existing client with email contact@beta.org",
+      when: "creating another client with the same email contact@beta.org",
+      then: "submission fails with error 'A client with this email already exists'",
+      priority: "P0",
+      expectedResult: "Duplicate email error shown",
+      tags: ["negative", "clients", "duplicate"],
+    },
+    {
+      id: "FIT-NEG-002",
+      featureId: "FR-CLI",
+      category: "Negative",
+      title: "Deleting client with unpaid invoices is disabled",
+      given: "a client with 1 Sent unpaid invoice",
+      when: "the freelancer views the client action menu",
+      then: "the delete button is disabled with tooltip explaining unpaid invoices exist",
+      priority: "P1",
+      expectedResult: "Delete button disabled with tooltip",
+      tags: ["negative", "clients", "delete-guard"],
+    },
+    {
+      id: "FIT-NEG-003",
+      featureId: "FR-INV",
+      category: "Negative",
+      title: "Due date before issue date is rejected",
+      given: "an invoice with issue date 2026-05-10",
+      when: "the user sets due date to 2026-05-09 (one day before)",
+      then: "validation error blocks save stating due date must be on or after issue date",
+      priority: "P1",
+      expectedResult: "Due date before issue date rejected",
+      tags: ["negative", "invoices", "date-order"],
+    },
+    {
+      id: "FIT-NEG-004",
+      featureId: "FR-INV",
+      category: "Negative",
+      title: "Editing a Sent invoice is blocked",
+      given: "an invoice in Sent status",
+      when: "attempting to edit line items or client details",
+      then: "editing is prohibited; only Draft invoices can be edited",
+      priority: "P0",
+      expectedResult: "Sent invoice edit blocked; read-only view enforced",
+      tags: ["negative", "invoices", "lifecycle"],
+    },
+    {
+      id: "FIT-NEG-005",
+      featureId: "FR-PAY",
+      category: "Negative",
+      title: "Payment exceeding outstanding balance by $0.01 rejected",
+      given: "an invoice with outstanding balance $250.00",
+      when: "recording a payment of $250.01",
+      then: "the submission is rejected with 'Amount exceeds outstanding balance'",
+      priority: "P0",
+      expectedResult: "Amount exceeds outstanding balance error displayed",
+      tags: ["negative", "payments", "overpayment"],
+    },
+    {
+      id: "FIT-NEG-006",
+      featureId: "FR-INV",
+      category: "Negative",
+      title: "Public invoice link opened 91 days after due date is expired",
+      given: "an invoice with due date 91 days in the past",
+      when: "opening the public invoice token URL",
+      then: "the page shows an invoice link expired notice and denies payment actions",
+      priority: "P1",
+      expectedResult: "Public link expired after 90 days of due date",
+      tags: ["negative", "public-link", "expiry"],
+    },
+    {
+      id: "FIT-SEC-001",
+      featureId: "FR-AUTH",
+      category: "Security",
+      title: "6th failed login inside 10 minutes locks account for 15 minutes",
+      given: "an account with 5 consecutive failed login attempts in 10 minutes",
+      when: "a 6th failed login attempt is submitted",
+      then: "the account is locked for 15 minutes and further login attempts return 423 Locked",
+      priority: "P0",
+      expectedResult: "Account locked for 15 minutes on 6th failed attempt",
+      tags: ["security", "auth", "lockout"],
+    },
+    {
+      id: "FIT-SEC-002",
+      featureId: "FR-AUTH",
+      category: "Security",
+      title: "Session invalidation after 60 minutes of inactivity",
+      given: "an active session idle for 60 minutes",
+      when: "any API request is made",
+      then: "the session is terminated and user is redirected to login with 401",
+      priority: "P1",
+      expectedResult: "Session expires at 60 minutes inactivity",
+      tags: ["security", "auth", "session"],
+    },
+    {
+      id: "FIT-SEC-003",
+      featureId: "NFR",
+      category: "Security",
+      title: "Accountant write endpoint returns 403 Forbidden",
+      given: "an authenticated Accountant session",
+      when: "they send a POST to /api/invoices or PUT to /api/clients",
+      then: "the server rejects the request with HTTP 403 Forbidden",
+      priority: "P0",
+      expectedResult: "Server-side RBAC enforces 403 for Accountant writes",
+      tags: ["security", "rbac", "accountant"],
+    },
+    {
+      id: "FIT-SEC-004",
+      featureId: "NFR",
+      category: "Security",
+      title: "Guessed or 31-char public link token rejected",
+      given: "a public token endpoint",
+      when: "a client supplies a 31-character token or random string",
+      then: "access is denied with 404 Not Found without leaking existence",
+      priority: "P0",
+      expectedResult: "Invalid token rejected; unguessable 32-char token required",
+      tags: ["security", "public-link", "token"],
+    },
+    {
+      id: "FIT-SEC-005",
+      featureId: "NFR",
+      category: "Security",
+      title: "Script tag in note is rendered as plain text",
+      given: "an invoice note containing <script>alert('xss')</script>",
+      when: "the public invoice page or client invoice view renders",
+      then: "the script text renders inert as plain text without script execution",
+      priority: "P0",
+      expectedResult: "XSS sanitized; rendered as plain text",
+      tags: ["security", "xss", "sanitization"],
+    },
+    {
+      id: "FIT-SEC-006",
+      featureId: "NFR",
+      category: "Security",
+      title: "Public invoice link isolates single invoice and reveals no other client data",
+      given: "a valid public invoice link for Acme Corp",
+      when: "the client inspects the response payload",
+      then: "only that specific invoice details are returned; no other client data or invoices are exposed",
+      priority: "P0",
+      expectedResult: "Public invoice link exposes only target invoice data",
+      tags: ["security", "isolation", "public-link"],
+    },
   ];
   return T;
 }
@@ -136,49 +460,319 @@ function cannedTestCases(): TestCase[] {
 export function getSampleCanned(): { requirements: ParsedRequirements; testCases: TestCase[]; playwright: PlaywrightSuite } {
   const requirements = cannedRequirements();
   const testCases = cannedTestCases();
-  const playwright = generatePlaywright(requirements, testCases);
-  // Override with polished hand-tuned page objects for the demo
-  const polished: PlaywrightSuite = {
-    ...playwright,
-    fileName: "vendor-onboarding.spec.ts",
-    pageObjects: [
-      {
-        className: "RegistrationPage",
-        fileName: "registration.page.ts",
-        code: `import { type Page, type Locator, expect } from "@playwright/test";\n\n/** Page Object for Vendor Registration */\nexport class RegistrationPage {\n  readonly page: Page;\n  readonly heading: Locator;\n  readonly corporateEmailInput = this.page.getByTestId("corporateEmail");\n\n  constructor(page: Page) {\n    this.page = page;\n    this.heading = page.getByRole("heading", { name: "Vendor Registration" });\n  }\n\n  async goto() {\n    await this.page.goto("/vendor-registration");\n    await expect(this.heading).toBeVisible();\n  }\n\n  async register(email: string, password: string, legalName: string, taxId: string) {\n    await this.page.getByTestId("corporateEmail").fill(email);\n    await this.page.getByTestId("password").fill(password);\n    await this.page.getByTestId("companyLegalName").fill(legalName);\n    await this.page.getByTestId("taxIdentifier").fill(taxId);\n    await this.page.getByRole("button", { name: "Create account" }).click();\n  }\n\n  async expectLoaded() {\n    await expect(this.page.getByTestId("vendor-registration-root")).toBeVisible();\n  }\n}\n`,
-      },
-      {
-        className: "DocumentUploadPage",
-        fileName: "document-upload.page.ts",
-        code: `import { type Page, type Locator, expect } from "@playwright/test";\n\n/** Page Object for Document Upload */\nexport class DocumentUploadPage {\n  readonly page: Page;\n  readonly heading: Locator;\n\n  constructor(page: Page) {\n    this.page = page;\n    this.heading = page.getByRole("heading", { name: "Document Upload" });\n  }\n\n  async goto() {\n    await this.page.goto("/document-upload");\n    await expect(this.heading).toBeVisible();\n  }\n\n  async upload(docType: string, filePath: string) {\n    await this.page.getByTestId(\`doc-\${docType}\`).setInputFiles(filePath);\n    await expect(this.page.getByTestId("upload-progress")).toContainText("100%");\n  }\n\n  async expectLoaded() {\n    await expect(this.page.getByTestId("document-upload-root")).toBeVisible();\n  }\n}\n`,
-      },
-      {
-        className: "BankDetailsPage",
-        fileName: "bank-details.page.ts",
-        code: `import { type Page, type Locator, expect } from "@playwright/test";\n\n/** Page Object for Bank Details */\nexport class BankDetailsPage {\n  readonly page: Page;\n  readonly heading: Locator;\n\n  constructor(page: Page) {\n    this.page = page;\n    this.heading = page.getByRole("heading", { name: "Bank Details" });\n  }\n\n  async goto() {\n    await this.page.goto("/bank-details");\n    await expect(this.heading).toBeVisible();\n  }\n\n  async fillIban(holder: string, iban: string) {\n    await this.page.getByTestId("accountHolderName").fill(holder);\n    await this.page.getByTestId("iban").fill(iban);\n    await this.page.getByRole("button", { name: "Validate" }).click();\n  }\n\n  async expectLoaded() {\n    await expect(this.page.getByTestId("bank-details-root")).toBeVisible();\n  }\n}\n`,
-      },
-      {
-        className: "SiteSurveyPage",
-        fileName: "site-survey.page.ts",
-        code: `import { type Page, type Locator, expect } from "@playwright/test";\n\n/** Page Object for KAM Site Survey */\nexport class SiteSurveyPage {\n  readonly page: Page;\n  readonly heading: Locator;\n\n  constructor(page: Page) {\n    this.page = page;\n    this.heading = page.getByRole("heading", { name: "KAM Site Survey" });\n  }\n\n  async goto() {\n    await this.page.goto("/kam-site-survey");\n    await expect(this.heading).toBeVisible();\n  }\n\n  async scoreSection(section: string, score: number) {\n    await this.page.getByTestId(\`section-\${section}\`).getByRole("radio", { name: String(score) }).click();\n  }\n\n  async expectLoaded() {\n    await expect(this.page.getByTestId("kam-site-survey-root")).toBeVisible();\n  }\n}\n`,
-      },
-      {
-        className: "ApprovalQueuePage",
-        fileName: "approval-queue.page.ts",
-        code: `import { type Page, type Locator, expect } from "@playwright/test";\n\n/** Page Object for Approval Workflow */\nexport class ApprovalQueuePage {\n  readonly page: Page;\n  readonly heading: Locator;\n\n  constructor(page: Page) {\n    this.page = page;\n    this.heading = page.getByRole("heading", { name: "Approval Workflow" });\n  }\n\n  async goto() {\n    await this.page.goto("/approval-workflow");\n    await expect(this.heading).toBeVisible();\n  }\n\n  async approve(vendorId: string) {\n    await this.page.getByTestId(\`approve-\${vendorId}\`).click();\n    await expect(this.page.getByTestId("vendor-id")).toContainText("VND-");\n  }\n\n  async expectLoaded() {\n    await expect(this.page.getByTestId("approval-workflow-root")).toBeVisible();\n  }\n}\n`,
-      },
-      {
-        className: "AuditLogPage",
-        fileName: "audit-log.page.ts",
-        code: `import { type Page, type Locator, expect } from "@playwright/test";\n\n/** Page Object for Audit Log & Reporting */\nexport class AuditLogPage {\n  readonly page: Page;\n  readonly heading: Locator;\n\n  constructor(page: Page) {\n    this.page = page;\n    this.heading = page.getByRole("heading", { name: "Audit Log" });\n  }\n\n  async goto() {\n    await this.page.goto("/audit-log-reporting");\n    await expect(this.heading).toBeVisible();\n  }\n\n  async exportCsv() {\n    const download = this.page.waitForEvent("download");\n    await this.page.getByRole("button", { name: "Export CSV" }).click();\n    return download;\n  }\n\n  async expectLoaded() {\n    await expect(this.page.getByTestId("audit-log-reporting-root")).toBeVisible();\n  }\n}\n`,
-      },
-    ],
+
+  const pageObjects = [
+    {
+      className: "LoginPage",
+      fileName: "login.page.ts",
+      code: `import { type Page, type Locator, expect } from "@playwright/test";
+
+/** Page Object for Authentication (Freelancer & Accountant login) */
+export class LoginPage {
+  readonly page: Page;
+  readonly heading: Locator;
+  readonly emailInput: Locator;
+  readonly passwordInput: Locator;
+  readonly submitButton: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.heading = page.getByRole("heading", { name: "Sign In" });
+    this.emailInput = page.getByTestId("login-email");
+    this.passwordInput = page.getByTestId("login-password");
+    this.submitButton = page.getByRole("button", { name: "Sign in" });
+  }
+
+  async goto() {
+    await this.page.goto("/login");
+  }
+
+  async login(email: string, pass: string) {
+    await this.emailInput.fill(email);
+    await this.passwordInput.fill(pass);
+    await this.submitButton.click();
+  }
+
+  async expectLoaded() {
+    await expect(this.heading).toBeVisible();
+  }
+}
+`,
+    },
+    {
+      className: "ClientsPage",
+      fileName: "clients.page.ts",
+      code: `import { type Page, type Locator, expect } from "@playwright/test";
+
+/** Page Object for Clients Management */
+export class ClientsPage {
+  readonly page: Page;
+  readonly heading: Locator;
+  readonly nameInput: Locator;
+  readonly emailInput: Locator;
+  readonly currencySelect: Locator;
+  readonly createButton: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.heading = page.getByRole("heading", { name: "Clients" });
+    this.nameInput = page.getByTestId("clientName");
+    this.emailInput = page.getByTestId("clientEmail");
+    this.currencySelect = page.getByTestId("currency");
+    this.createButton = page.getByRole("button", { name: "Add Client" });
+  }
+
+  async goto() {
+    await this.page.goto("/clients");
+  }
+
+  async createClient(name: string, email: string, currency: string) {
+    await this.nameInput.fill(name);
+    await this.emailInput.fill(email);
+    await this.currencySelect.selectOption(currency);
+    await this.createButton.click();
+  }
+
+  async expectLoaded() {
+    await expect(this.page.getByTestId("clients-root")).toBeVisible();
+  }
+}
+`,
+    },
+    {
+      className: "InvoiceEditorPage",
+      fileName: "invoice-editor.page.ts",
+      code: `import { type Page, type Locator, expect } from "@playwright/test";
+
+/** Page Object for Invoice Creation and Editing */
+export class InvoiceEditorPage {
+  readonly page: Page;
+  readonly heading: Locator;
+  readonly clientSelect: Locator;
+  readonly issueDateInput: Locator;
+  readonly dueDateInput: Locator;
+  readonly noteInput: Locator;
+  readonly addItemButton: Locator;
+  readonly saveDraftButton: Locator;
+  readonly sendInvoiceButton: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.heading = page.getByRole("heading", { name: "Invoice Editor" });
+    this.clientSelect = page.getByTestId("invoiceClient");
+    this.issueDateInput = page.getByTestId("issueDate");
+    this.dueDateInput = page.getByTestId("dueDate");
+    this.noteInput = page.getByTestId("note");
+    this.addItemButton = page.getByRole("button", { name: "Add Item" });
+    this.saveDraftButton = page.getByRole("button", { name: "Save Draft" });
+    this.sendInvoiceButton = page.getByRole("button", { name: "Send Invoice" });
+  }
+
+  async goto() {
+    await this.page.goto("/invoices/new");
+  }
+
+  async expectLoaded() {
+    await expect(this.page.getByTestId("invoice-editor-root")).toBeVisible();
+  }
+}
+`,
+    },
+    {
+      className: "PaymentsPage",
+      fileName: "payments.page.ts",
+      code: `import { type Page, type Locator, expect } from "@playwright/test";
+
+/** Page Object for Payments & Balance Tracking */
+export class PaymentsPage {
+  readonly page: Page;
+  readonly heading: Locator;
+  readonly amountInput: Locator;
+  readonly dateInput: Locator;
+  readonly recordButton: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.heading = page.getByRole("heading", { name: "Payments" });
+    this.amountInput = page.getByTestId("paymentAmount");
+    this.dateInput = page.getByTestId("paymentDate");
+    this.recordButton = page.getByRole("button", { name: "Record Payment" });
+  }
+
+  async goto() {
+    await this.page.goto("/payments");
+  }
+
+  async expectLoaded() {
+    await expect(this.page.getByTestId("payments-root")).toBeVisible();
+  }
+}
+`,
+    },
+    {
+      className: "PublicInvoicePage",
+      fileName: "public-invoice.page.ts",
+      code: `import { type Page, type Locator, expect } from "@playwright/test";
+
+/** Page Object for Public Client Invoice View */
+export class PublicInvoicePage {
+  readonly page: Page;
+  readonly heading: Locator;
+  readonly paymentSentButton: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.heading = page.getByRole("heading", { name: "Invoice Details" });
+    this.paymentSentButton = page.getByRole("button", { name: "Payment Sent" });
+  }
+
+  async gotoToken(token: string) {
+    await this.page.goto(\`/i/\${token}\`);
+  }
+
+  async expectLoaded() {
+    await expect(this.page.getByTestId("public-invoice-root")).toBeVisible();
+  }
+}
+`,
+    },
+    {
+      className: "ExportPage",
+      fileName: "export.page.ts",
+      code: `import { type Page, type Locator, expect } from "@playwright/test";
+
+/** Page Object for Accountant CSV Export */
+export class ExportPage {
+  readonly page: Page;
+  readonly heading: Locator;
+  readonly startDateInput: Locator;
+  readonly endDateInput: Locator;
+  readonly exportButton: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.heading = page.getByRole("heading", { name: "Export Invoices" });
+    this.startDateInput = page.getByTestId("startDate");
+    this.endDateInput = page.getByTestId("endDate");
+    this.exportButton = page.getByRole("button", { name: "Export CSV" });
+  }
+
+  async goto() {
+    await this.page.goto("/export");
+  }
+
+  async exportCsv() {
+    const download = this.page.waitForEvent("download");
+    await this.exportButton.click();
+    return download;
+  }
+
+  async expectLoaded() {
+    await expect(this.page.getByTestId("export-root")).toBeVisible();
+  }
+}
+`,
+    },
+  ];
+
+  const fileName = "invoice-tracker.spec.ts";
+  const imports = pageObjects
+    .map((p) => `import { ${p.className} } from "./pages/${p.fileName.replace(/\\.ts$/, "")}";`)
+    .join("\n");
+
+  const byFeature = new Map<string, TestCase[]>();
+  for (const c of testCases) {
+    const arr = byFeature.get(c.featureId) ?? [];
+    arr.push(c);
+    byFeature.set(c.featureId, arr);
+  }
+
+  const featurePomMap: Record<string, string> = {
+    "FR-AUTH": "LoginPage",
+    "FR-CLI": "ClientsPage",
+    "FR-INV": "InvoiceEditorPage",
+    "FR-PAY": "PaymentsPage",
+    "FR-EXP": "ExportPage",
+    NFR: "PublicInvoicePage",
   };
-  // Rebuild specCode/combinedCode around polished POMs but keep coverage
-  const rebuilt = generatePlaywright(requirements, testCases);
+
+  const describeBlocks = requirements.features
+    .map((f) => {
+      const list = byFeature.get(f.id) ?? [];
+      const poClass = featurePomMap[f.id] || "LoginPage";
+      const tests = list
+        .map((t) => {
+          return [
+            `  test(${JSON.stringify(t.title.slice(0, 90))}, async ({ page }) => {`,
+            `    // covers ${t.id}`,
+            `    const pom = new ${poClass}(page);`,
+            `    await pom.goto();`,
+            `    // Given: ${t.given.slice(0, 110)}`,
+            `    // When: ${t.when.slice(0, 110)}`,
+            `    await expect(page.getByTestId("status-${t.id.toLowerCase()}")).toBeVisible();`,
+            `    // Then: ${t.then.slice(0, 110)}`,
+            `    await expect(page.getByTestId("result-${t.id.toLowerCase()}")).toContainText(${JSON.stringify(t.expectedResult.slice(0, 40))});`,
+            `  });`,
+            ``,
+          ].join("\n");
+        })
+        .join("\n");
+
+      return [
+        `test.describe(${JSON.stringify(f.name)}, () => {`,
+        `  test.beforeEach(async ({ page }) => {`,
+        `    await page.goto("/login");`,
+        `    await page.getByTestId("login-email").fill("alex@freelance.dev");`,
+        `    await page.getByTestId("login-password").fill("Str0ngPass99");`,
+        `    await page.getByRole("button", { name: "Sign in" }).click();`,
+        `  });`,
+        ``,
+        tests,
+        `});`,
+        ``,
+      ].join("\n");
+    })
+    .join("\n");
+
+  const specCode = [
+    `import { test, expect } from "@playwright/test";`,
+    imports,
+    ``,
+    `/**`,
+    ` * ${requirements.title}`,
+    ` * Generated by SpecShield QA — ${testCases.length} tests across ${requirements.features.length} features.`,
+    ` * Run with: npx playwright test ${fileName}`,
+    ` */`,
+    ``,
+    describeBlocks,
+  ].join("\n");
+
+  const combinedCode = [
+    `import { test, expect, type Page, type Locator } from "@playwright/test";`,
+    ``,
+    `/* ── Page Objects (inlined for single-file download) ─────────────────── */`,
+    ``,
+    ...pageObjects.flatMap((p) => {
+      const body = p.code.split("\n").filter((l) => !l.startsWith("import {")).join("\n");
+      return [body];
+    }),
+    ``,
+    `/* ── Tests ───────────────────────────────────────────────────────────── */`,
+    ``,
+    describeBlocks,
+  ].join("\n");
+
+  const coverage = testCases.map((c) => ({ testCaseId: c.id, testName: c.title.slice(0, 90) }));
+
   return {
     requirements,
     testCases,
-    playwright: { ...rebuilt, fileName: polished.fileName, pageObjects: polished.pageObjects },
+    playwright: {
+      fileName,
+      pageObjects,
+      specCode,
+      combinedCode,
+      coverage,
+    },
   };
 }

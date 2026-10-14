@@ -18,5 +18,5 @@ export function modelDisplayName(): string {
 }
 
 export function modelSettings(): { temperature: number; maxTokens: number } {
-  return { temperature: env.GEMMA_TEMPERATURE, maxTokens: env.GEMMA_MAX_TOKENS };
+  return { temperature: env.GEMMA_TEMPERATURE, maxTokens: env.GEMMA_MAX_TOKENS ?? 4096 };
 }

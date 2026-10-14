@@ -52,26 +52,82 @@ const codegenOutputSchema = z.object({
   playwright: playwrightSuiteSchema,
 });
 
+interface AgentLike {
+  generate: (msg: string, opts?: Record<string, unknown>) => Promise<{ text: string; usage?: unknown }>;
+  stream?: (msg: string, opts?: Record<string, unknown>) => Promise<{ textStream?: AsyncIterable<string>; usage?: unknown }>;
+}
+
 function estimateTokens(promptChars: number, textChars: number): { inputTokens: number; outputTokens: number } {
   return { inputTokens: Math.round(promptChars / 4), outputTokens: Math.round(textChars / 4) };
 }
 
 async function generateWithAgent(
-  agent: { generate: (msg: string, opts?: Record<string, unknown>) => Promise<{ text: string; usage?: unknown }> },
+  agent: AgentLike,
   prompt: string,
-  systemLen: number
+  systemLen: number,
+  stepMaxTokens: number,
+  onProgress?: (outputTokens: number, tokensPerSecond: number) => void
 ): Promise<{ text: string; inputTokens: number; outputTokens: number; responseModel: string }> {
   const settings = modelSettings();
   const timeoutMs = env.OLLAMA_TIMEOUT_MS;
-  const run = async () => {
-    const opts: Record<string, unknown> = {
-      modelSettings: { temperature: settings.temperature, maxTokens: settings.maxTokens },
-    };
+  const maxTokens = stepMaxTokens;
+  const opts: Record<string, unknown> = {
+    modelSettings: { temperature: settings.temperature, maxTokens },
+  };
+  try {
+    (opts as { abortSignal?: AbortSignal }).abortSignal = AbortSignal.timeout(timeoutMs);
+  } catch {
+    // ignore
+  }
+
+  if (typeof agent.stream === "function") {
+    const t0 = Date.now();
+    let lastEmit = t0;
+    const streamPromise = agent.stream(prompt, opts);
+    const timeoutPromise = new Promise<never>((_, rej) =>
+      setTimeout(() => rej(new Error(`Ollama timeout after ${timeoutMs}ms`)), timeoutMs + 2000)
+    );
+    const res = await Promise.race([streamPromise, timeoutPromise]);
+    let text = "";
+    if (res && res.textStream) {
+      for await (const chunk of res.textStream) {
+        text += chunk;
+        const now = Date.now();
+        if (now - lastEmit >= 1000) {
+          lastEmit = now;
+          const estTokens = Math.round(text.length / 4);
+          const elapsedSec = (now - t0) / 1000;
+          const tokPerSec = elapsedSec > 0 ? Number((estTokens / elapsedSec).toFixed(1)) : 0;
+          if (onProgress) {
+            onProgress(estTokens, tokPerSec);
+          }
+        }
+      }
+    } else {
+      text = String((res as { text?: unknown })?.text ?? "");
+    }
+
+    let inputTokens = 0;
+    let outputTokens = 0;
     try {
-      (opts as { abortSignal?: AbortSignal }).abortSignal = AbortSignal.timeout(timeoutMs);
+      const usage = await (res as { usage?: unknown })?.usage;
+      if (usage && typeof usage === "object") {
+        const u = usage as Record<string, unknown>;
+        inputTokens = Number(u.inputTokens ?? u.promptTokens ?? 0) || 0;
+        outputTokens = Number(u.outputTokens ?? u.completionTokens ?? 0) || 0;
+      }
     } catch {
       // ignore
     }
+    if (inputTokens === 0 && outputTokens === 0) {
+      const est = estimateTokens(prompt.length + systemLen, text.length);
+      inputTokens = est.inputTokens;
+      outputTokens = est.outputTokens;
+    }
+    return { text, inputTokens, outputTokens, responseModel: modelDisplayName() };
+  }
+
+  const run = async () => {
     const res = await Promise.race([
       agent.generate(prompt, opts),
       new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`Ollama timeout after ${timeoutMs}ms`)), timeoutMs + 2000)),
@@ -109,7 +165,15 @@ function startStep(runId: string, step: StepId, agentName: string, promptChars: 
 function endStep(
   runId: string,
   step: StepId,
-  patch: { status: "success" | "fallback" | "error"; mode: AgentMode; durationMs: number; inputTokens: number; outputTokens: number; error?: string },
+  patch: {
+    status: "success" | "fallback" | "error";
+    mode: AgentMode;
+    durationMs: number;
+    inputTokens: number;
+    outputTokens: number;
+    codegenStrategy?: string;
+    error?: string;
+  },
   preview?: { label: string; value: string }
 ): void {
   const ids = currentTraceIds();
@@ -121,6 +185,7 @@ function endStep(
     durationMs: patch.durationMs,
     inputTokens: patch.inputTokens,
     outputTokens: patch.outputTokens,
+    codegenStrategy: patch.codegenStrategy,
     error: patch.error,
     sentryTraceId: ids.traceId,
     sentrySpanId: ids.spanId,
@@ -142,9 +207,21 @@ const parseStep = createStep({
     const t0 = Date.now();
     startStep(runId, "requirementParser", agentName, promptChars);
 
-    const done = async (requirements: ParsedRequirements, stepMode: AgentMode, status: "success" | "fallback", inputTokens: number, outputTokens: number, error?: string) => {
+    const done = async (
+      requirements: ParsedRequirements,
+      stepMode: AgentMode,
+      status: "success" | "fallback",
+      inputTokens: number,
+      outputTokens: number,
+      error?: string
+    ) => {
       const durationMs = Date.now() - t0;
-      endStep(runId, "requirementParser", { status, mode: stepMode, durationMs, inputTokens, outputTokens, error }, { label: "requirements", value: `${requirements.roles.length} roles · ${requirements.acceptanceCriteria.length} criteria` });
+      endStep(
+        runId,
+        "requirementParser",
+        { status, mode: stepMode, durationMs, inputTokens, outputTokens, error },
+        { label: "requirements", value: `${requirements.roles.length} roles · ${requirements.acceptanceCriteria.length} criteria` }
+      );
       return { runId, spec, title, mode, requirements };
     };
 
@@ -159,9 +236,20 @@ const parseStep = createStep({
     }
 
     try {
+      const onProgress = (outputTokens: number, tokensPerSecond: number) => {
+        TelemetryCollector.update(runId, "requirementParser", { progress: { outputTokens, tokensPerSecond } });
+        events.emit(runId, { type: "step:progress", runId, step: "requirementParser", outputTokens, tokensPerSecond });
+      };
+
       const out = await withAgentSpan(runId, "requirementParser", agentName, model, async (api) => {
         const chat = await withChatSpan(model, [{ role: "user", content: userPrompt }], promptChars, () =>
-          generateWithAgent(requirementParser as unknown as { generate: (m: string, o?: Record<string, unknown>) => Promise<{ text: string; usage?: unknown }> }, userPrompt, PARSER_SYSTEM.length)
+          generateWithAgent(
+            requirementParser as unknown as AgentLike,
+            userPrompt,
+            PARSER_SYSTEM.length,
+            env.GEMMA_MAX_TOKENS_PARSER,
+            onProgress
+          )
         );
         const parsed = parseWithSchema(parsedRequirementsSchema, chat.text);
         if (parsed.ok) {
@@ -169,10 +257,24 @@ const parseStep = createStep({
           api.setStatus("success");
           return { status: "success" as const, inputTokens: chat.inputTokens, outputTokens: chat.outputTokens, value: parsed.data };
         }
-        // repair retry once
-        const repairPrompt = `${userPrompt}\n\nYour previous output failed validation: ${parsed.error}\nReturn ONLY the corrected JSON object.`;
+
+        // Repair retry once with short prompt (zod error + invalid output, no original prompt)
+        const repairPrompt = `Your previous output failed JSON/schema validation:
+Error: ${parsed.error}
+
+Invalid output:
+${chat.text.slice(0, 3000)}
+
+Return ONLY the corrected, valid minified JSON object matching ParsedRequirements on a single line.`;
+
         const chat2 = await withChatSpan(model, [{ role: "user", content: repairPrompt }], repairPrompt.length, () =>
-          generateWithAgent(requirementParser as unknown as { generate: (m: string, o?: Record<string, unknown>) => Promise<{ text: string; usage?: unknown }> }, repairPrompt, PARSER_SYSTEM.length)
+          generateWithAgent(
+            requirementParser as unknown as AgentLike,
+            repairPrompt,
+            PARSER_SYSTEM.length,
+            env.GEMMA_MAX_TOKENS_PARSER,
+            onProgress
+          )
         );
         const parsed2 = parseWithSchema(parsedRequirementsSchema, chat2.text);
         if (parsed2.ok) {
@@ -209,9 +311,21 @@ const matrixStep = createStep({
     const t0 = Date.now();
     startStep(runId, "qaMatrixArchitect", agentName, promptChars);
 
-    const done = async (testCases: TestCase[], stepMode: AgentMode, status: "success" | "fallback", inputTokens: number, outputTokens: number, error?: string) => {
+    const done = async (
+      testCases: TestCase[],
+      stepMode: AgentMode,
+      status: "success" | "fallback",
+      inputTokens: number,
+      outputTokens: number,
+      error?: string
+    ) => {
       const durationMs = Date.now() - t0;
-      endStep(runId, "qaMatrixArchitect", { status, mode: stepMode, durationMs, inputTokens, outputTokens, error }, { label: "matrix", value: `${testCases.length} test cases` });
+      endStep(
+        runId,
+        "qaMatrixArchitect",
+        { status, mode: stepMode, durationMs, inputTokens, outputTokens, error },
+        { label: "matrix", value: `${testCases.length} test cases` }
+      );
       return { runId, spec, title, mode, requirements, testCases };
     };
 
@@ -224,14 +338,24 @@ const matrixStep = createStep({
     }
 
     try {
+      const onProgress = (outputTokens: number, tokensPerSecond: number) => {
+        TelemetryCollector.update(runId, "qaMatrixArchitect", { progress: { outputTokens, tokensPerSecond } });
+        events.emit(runId, { type: "step:progress", runId, step: "qaMatrixArchitect", outputTokens, tokensPerSecond });
+      };
+
       const out = await withAgentSpan(runId, "qaMatrixArchitect", agentName, model, async (api) => {
         const chat = await withChatSpan(model, [{ role: "user", content: userPrompt }], promptChars, () =>
-          generateWithAgent(qaMatrixArchitect as unknown as { generate: (m: string, o?: Record<string, unknown>) => Promise<{ text: string; usage?: unknown }> }, userPrompt, MATRIX_SYSTEM.length)
+          generateWithAgent(
+            qaMatrixArchitect as unknown as AgentLike,
+            userPrompt,
+            MATRIX_SYSTEM.length,
+            env.GEMMA_MAX_TOKENS_MATRIX,
+            onProgress
+          )
         );
         const schema = z.object({ testCases: testCaseArraySchema });
         const parsed = parseWithSchema(schema, chat.text);
         const list = parsed.ok ? parsed.data.testCases : null;
-        // also accept bare array
         const bare = !list ? parseWithSchema(testCaseArraySchema, chat.text) : null;
         const finalList = list ?? (bare && bare.ok ? bare.data : null);
         if (finalList && finalList.length >= 8) {
@@ -239,9 +363,22 @@ const matrixStep = createStep({
           api.setStatus("success");
           return { status: "success" as const, inputTokens: chat.inputTokens, outputTokens: chat.outputTokens, value: finalList.slice(0, 40) };
         }
-        const repairPrompt = `${userPrompt}\n\nYour previous output failed validation${parsed.ok ? "" : `: ${(parsed as { error: string }).error}`}. Return 18–40 cases across all four categories as { "testCases": [...] } only.`;
+
+        // Short repair prompt with zod error + invalid output
+        const repairPrompt = `Your previous output failed validation${parsed.ok ? "" : `: ${(parsed as { error: string }).error}`}:
+Invalid output:
+${chat.text.slice(0, 3000)}
+
+Return 12–20 test cases across all four categories as a single-line minified JSON: {"testCases":[...]}`;
+
         const chat2 = await withChatSpan(model, [{ role: "user", content: repairPrompt }], repairPrompt.length, () =>
-          generateWithAgent(qaMatrixArchitect as unknown as { generate: (m: string, o?: Record<string, unknown>) => Promise<{ text: string; usage?: unknown }> }, repairPrompt, MATRIX_SYSTEM.length)
+          generateWithAgent(
+            qaMatrixArchitect as unknown as AgentLike,
+            repairPrompt,
+            MATRIX_SYSTEM.length,
+            env.GEMMA_MAX_TOKENS_MATRIX,
+            onProgress
+          )
         );
         const p2 = parseWithSchema(schema, chat2.text);
         const l2 = p2.ok ? p2.data.testCases : null;
@@ -278,9 +415,22 @@ const codegenStep = createStep({
     const t0 = Date.now();
     startStep(runId, "playwrightCodegen", agentName, promptChars);
 
-    const done = async (playwright: PlaywrightSuite, stepMode: AgentMode, status: "success" | "fallback", inputTokens: number, outputTokens: number, error?: string) => {
+    const done = async (
+      playwright: PlaywrightSuite,
+      stepMode: AgentMode,
+      status: "success" | "fallback",
+      inputTokens: number,
+      outputTokens: number,
+      codegenStrategy?: string,
+      error?: string
+    ) => {
       const durationMs = Date.now() - t0;
-      endStep(runId, "playwrightCodegen", { status, mode: stepMode, durationMs, inputTokens, outputTokens, error }, { label: "playwright", value: `${playwright.pageObjects.length} page objects · ${playwright.coverage.length} tests` });
+      endStep(
+        runId,
+        "playwrightCodegen",
+        { status, mode: stepMode, durationMs, inputTokens, outputTokens, codegenStrategy, error },
+        { label: "playwright", value: `${playwright.pageObjects.length} page objects · ${playwright.coverage.length} tests` }
+      );
       return { runId, spec, title, mode, requirements, testCases, playwright };
     };
 
@@ -293,35 +443,145 @@ const codegenStep = createStep({
     }
 
     try {
+      const onProgress = (outputTokens: number, tokensPerSecond: number) => {
+        TelemetryCollector.update(runId, "playwrightCodegen", { progress: { outputTokens, tokensPerSecond } });
+        events.emit(runId, { type: "step:progress", runId, step: "playwrightCodegen", outputTokens, tokensPerSecond });
+      };
+
       const out = await withAgentSpan(runId, "playwrightCodegen", agentName, model, async (api) => {
         const chat = await withChatSpan(model, [{ role: "user", content: userPrompt }], promptChars, () =>
-          generateWithAgent(playwrightCodegen as unknown as { generate: (m: string, o?: Record<string, unknown>) => Promise<{ text: string; usage?: unknown }> }, userPrompt, CODEGEN_SYSTEM.length)
+          generateWithAgent(
+            playwrightCodegen as unknown as AgentLike,
+            userPrompt,
+            CODEGEN_SYSTEM.length,
+            env.GEMMA_MAX_TOKENS_CODEGEN,
+            onProgress
+          )
         );
-        const parsed = parseWithSchema(playwrightSuiteSchema, chat.text);
-        if (parsed.ok && parsed.data.specCode.includes("@playwright/test")) {
-          api.setUsage(chat.inputTokens, chat.outputTokens);
-          api.setStatus("success");
-          return { status: "success" as const, inputTokens: chat.inputTokens, outputTokens: chat.outputTokens, value: parsed.data };
+
+        const extractTestBody = (text: string): string => {
+          try {
+            const parsed = parseWithSchema(z.object({ testBody: z.string().optional(), specCode: z.string().optional() }), text);
+            if (parsed.ok && (parsed.data.testBody || parsed.data.specCode)) {
+              return (parsed.data.testBody || parsed.data.specCode || "").trim();
+            }
+          } catch {
+            // ignore
+          }
+          const m = text.match(/test\.describe[\s\S]+/);
+          if (m) {
+            return m[0].replace(/```+$/, "").trim();
+          }
+          return "";
+        };
+
+        let testBody = extractTestBody(chat.text);
+        let totalIn = chat.inputTokens;
+        let totalOut = chat.outputTokens;
+
+        if (!testBody || !testBody.includes("test")) {
+          const repairPrompt = `Your previous output did not contain valid Playwright test.describe blocks.
+Invalid output:
+${chat.text.slice(0, 3000)}
+
+Return ONLY a minified JSON object on a single line: {"testBody":"test.describe(...) ..."}`;
+
+          const chat2 = await withChatSpan(model, [{ role: "user", content: repairPrompt }], repairPrompt.length, () =>
+            generateWithAgent(
+              playwrightCodegen as unknown as AgentLike,
+              repairPrompt,
+              CODEGEN_SYSTEM.length,
+              env.GEMMA_MAX_TOKENS_CODEGEN,
+              onProgress
+            )
+          );
+          totalIn += chat2.inputTokens;
+          totalOut += chat2.outputTokens;
+          testBody = extractTestBody(chat2.text);
         }
-        const repairPrompt = `${userPrompt}\n\nYour previous output failed validation${parsed.ok ? " (missing @playwright/test import)" : `: ${(parsed as { error: string }).error}`}. Return ONLY the corrected PlaywrightSuite JSON.`;
-        const chat2 = await withChatSpan(model, [{ role: "user", content: repairPrompt }], repairPrompt.length, () =>
-          generateWithAgent(playwrightCodegen as unknown as { generate: (m: string, o?: Record<string, unknown>) => Promise<{ text: string; usage?: unknown }> }, repairPrompt, CODEGEN_SYSTEM.length)
-        );
-        const p2 = parseWithSchema(playwrightSuiteSchema, chat2.text);
-        if (p2.ok) {
-          api.setUsage(chat.inputTokens + chat2.inputTokens, chat.outputTokens + chat2.outputTokens);
-          api.setStatus("success");
-          return { status: "success" as const, inputTokens: chat.inputTokens + chat2.inputTokens, outputTokens: chat.outputTokens + chat2.outputTokens, value: p2.data };
+
+        if (!testBody || !testBody.includes("test")) {
+          throw new Error("Model failed to generate Playwright test body");
         }
-        throw new Error(`Playwright JSON invalid: ${(p2 as { error: string }).error}`);
+
+        // Generate deterministic template POMs from requirements
+        const templateSuite = generatePlaywright(requirements, []);
+        const pageObjects = templateSuite.pageObjects;
+        const fileName = templateSuite.fileName;
+        const imports = pageObjects
+          .map((p) => `import { ${p.className} } from "./pages/${p.fileName.replace(/\.ts$/, "")}";`)
+          .join("\n");
+
+        // Compute coverage from // covers comments
+        const coversMatches = [...testBody.matchAll(/\/\/\s*covers\s+([A-Za-z0-9_-]+)/g)];
+        const coveredIds = new Set(coversMatches.map((m) => m[1]).filter((x): x is string => Boolean(x)));
+        const coverage: { testCaseId: string; testName: string }[] = [];
+        for (const id of coveredIds) {
+          const tc = testCases.find((c) => c.id === id);
+          coverage.push({ testCaseId: id, testName: tc ? tc.title.slice(0, 90) : `Test covering ${id}` });
+        }
+        if (coverage.length === 0) {
+          for (const c of testCases.slice(0, 10)) {
+            coverage.push({ testCaseId: c.id, testName: c.title.slice(0, 90) });
+          }
+        }
+
+        const specCode = [
+          `import { test, expect } from "@playwright/test";`,
+          imports,
+          ``,
+          `/**`,
+          ` * ${requirements.title}`,
+          ` * Generated by SpecShield QA — ${coverage.length} tests across ${requirements.features.length} features.`,
+          ` * Run with: npx playwright test ${fileName}`,
+          ` */`,
+          ``,
+          testBody,
+        ].join("\n");
+
+        const combinedCode = [
+          `import { test, expect, type Page, type Locator } from "@playwright/test";`,
+          ``,
+          `/* ── Page Objects (inlined for single-file download) ─────────────────── */`,
+          ``,
+          ...pageObjects.flatMap((p) => {
+            const body = p.code.split("\n").filter((l) => !l.startsWith("import {")).join("\n");
+            return [body];
+          }),
+          ``,
+          `/* ── Tests ───────────────────────────────────────────────────────────── */`,
+          ``,
+          testBody,
+        ].join("\n");
+
+        const playwright: PlaywrightSuite = {
+          fileName,
+          pageObjects,
+          specCode,
+          combinedCode,
+          coverage,
+        };
+
+        api.setUsage(totalIn, totalOut);
+        api.setStatus("success");
+        api.setAttribute("specshield.codegen_strategy", "gemma-tests+template-pom");
+
+        return {
+          status: "success" as const,
+          inputTokens: totalIn,
+          outputTokens: totalOut,
+          value: playwright,
+          codegenStrategy: "gemma-tests+template-pom",
+        };
       });
-      return done(out.value, "gemma", "success", out.inputTokens, out.outputTokens);
+
+      return done(out.value, "gemma", "success", out.inputTokens, out.outputTokens, out.codegenStrategy);
     } catch (err) {
       if (isSampleSpec(spec)) {
         const canned = getSampleCanned();
-        return done(canned.playwright, "fallback", "fallback", 0, 0, (err as Error).message);
+        return done(canned.playwright, "fallback", "fallback", 0, 0, undefined, (err as Error).message);
       }
-      return done(generatePlaywright(requirements, testCases), "fallback", "fallback", 0, 0, (err as Error).message);
+      return done(generatePlaywright(requirements, testCases), "fallback", "fallback", 0, 0, undefined, (err as Error).message);
     }
   },
 });

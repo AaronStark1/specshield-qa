@@ -75,3 +75,29 @@ export async function resolveMode(): Promise<"gemma" | "fallback"> {
 export function clearOllamaCache(): void {
   cache = null;
 }
+
+export async function getLoadedModelContextLength(): Promise<number | null> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 1500);
+    try {
+      const res = await fetch(`${baseWithoutV1()}/api/ps`, { signal: ctrl.signal });
+      if (!res.ok) return null;
+      const body = (await res.json()) as {
+        models?: { name?: string; model?: string; context_length?: number }[];
+      };
+      if (!body.models || body.models.length === 0) return null;
+      const wanted = env.GEMMA_MODEL.toLowerCase().trim();
+      const match =
+        body.models.find((m) => {
+          const n = (m.name ?? m.model ?? "").toLowerCase().trim();
+          return modelMatches([n], wanted);
+        }) ?? body.models[0];
+      return typeof match?.context_length === "number" ? match.context_length : null;
+    } finally {
+      clearTimeout(t);
+    }
+  } catch {
+    return null;
+  }
+}

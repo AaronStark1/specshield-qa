@@ -20,7 +20,7 @@ function kebab(s: string): string {
 
 function slugFile(title: string): string {
   const low = title.toLowerCase();
-  if (low.includes("vendor")) return "vendor-onboarding.spec.ts";
+  if (low.includes("invoice")) return "invoice-tracker.spec.ts";
   return `${kebab(title)}.spec.ts`;
 }
 
@@ -111,7 +111,7 @@ export function generatePlaywright(req: ParsedRequirements, cases: TestCase[]): 
       `  });`,
       ``,
     ].join("\n");
-    return [`test.describe(${JSON.stringify(f.name)}, () => {`, `  test.beforeEach(async ({ page }) => {`, `    await page.goto("/login");`, `    await page.getByTestId("login-email").fill("qa@meridian.example");`, `    await page.getByTestId("login-password").fill("Str0ng!Passw0rd-12");`, `    await page.getByRole("button", { name: "Sign in" }).click();`, `  });`, ``, body, `});`, ``].join("\n");
+    return [`test.describe(${JSON.stringify(f.name)}, () => {`, `  test.beforeEach(async ({ page }) => {`, `    await page.goto("/login");`, `    await page.getByTestId("login-email").fill("qa@example.com");`, `    await page.getByTestId("login-password").fill("Str0ngPass99");`, `    await page.getByRole("button", { name: "Sign in" }).click();`, `  });`, ``, body, `});`, ``].join("\n");
   }).join("\n");
 
   const specCode = [

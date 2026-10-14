@@ -32,7 +32,18 @@ export function usePipeline(): { run: () => Promise<void>; cancel: () => void } 
     try {
       await runPipeline(st.spec, st.title, (ev: PipelineEvent) => {
         const s = usePipelineStore.getState();
-        if (ev.type === "step:start") {
+        if (ev.type === "step:progress") {
+          s.setSteps(
+            s.steps.map((x) =>
+              x.step === ev.step
+                ? {
+                    ...x,
+                    progress: { outputTokens: ev.outputTokens, tokensPerSecond: ev.tokensPerSecond },
+                  }
+                : x
+            )
+          );
+        } else if (ev.type === "step:start") {
           s.setSteps(s.steps.map((x) => (x.step === ev.step.step ? { ...ev.step } : x)));
         } else if (ev.type === "step:end") {
           s.setSteps(s.steps.map((x) => (x.step === ev.step.step ? { ...ev.step } : x)));

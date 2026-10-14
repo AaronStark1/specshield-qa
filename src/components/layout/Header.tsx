@@ -24,6 +24,11 @@ export function Header() {
           <Badge tone="emerald">100% Local Gemma Inference | NDA Safe | $0.00 API Cost</Badge>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          {health?.contextLength != null && health.contextLength < 8192 && (
+            <Badge tone="amber">
+              Context {health.contextLength} — restart Ollama with OLLAMA_CONTEXT_LENGTH=8192
+            </Badge>
+          )}
           {health ? (
             isGemma ? (
               <Badge tone="emerald">● {model} · Local</Badge>

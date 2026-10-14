@@ -10,7 +10,7 @@ tags: devchallenge, hf26challenge, gemma, mastra
 
 Boutique agencies and freelance QA engineers live under NDAs that forbid pasting client PRDs into cloud LLMs. I have watched a two-page registration story turn into an afternoon of spreadsheet test cases, then another afternoon of Playwright boilerplate. Four to six unbillable hours per sprint, every sprint, and the work is so mechanical it hurts.
 
-SpecShield QA is a local-first studio that takes that PRD and returns three things in under a minute: structured requirements with roles, features and validation rules; a filterable QA matrix of 30 test cases across Functional, Boundary, Negative and Security; and a downloadable Playwright suite built on the Page Object Model with one class per screen, `getByTestId` locators, login fixtures and a `// covers VND-FUNC-001` comment on every test.
+SpecShield QA is a local-first studio that takes that PRD and returns three things: structured requirements with roles, features and validation rules; a filterable QA matrix of 30 test cases across Functional, Boundary, Negative and Security; and a downloadable Playwright suite built on the Page Object Model with one class per screen, `getByTestId` locators, login fixtures and a `// covers FIT-FUNC-001` comment on every test.
 
 The whole pipeline runs on Gemma locally through Ollama, so the spec never leaves the laptop and inference costs $0.00. Every agent step is traced with Sentry Agent Tracing, past runs persist to a local JSON file, and the app stays fully usable when Ollama is not installed thanks to a deterministic fallback that is honest about its `mode`.
 
@@ -18,7 +18,7 @@ The whole pipeline runs on Gemma locally through Ollama, so the spec never leave
 
 ### The Side Hustle Business Model
 
-The buyer is a freelance QA engineer billing $85 an hour, or a five-person agency that onboards two vendors' worth of regression suites a month. The sample vendor-onboarding spec in this repo produces 30 cases and 6 page objects. At 12 minutes per case plus 25 minutes per page object and 45 minutes of review, that is 9.3 hours, or $790.50 of billable value, per run. Charge $29 a month for the seat and the tool pays for itself if it saves twenty minutes.
+The buyer is a freelance QA engineer billing $85 an hour, or a five-person agency that onboards two clients' worth of regression suites a month. The bundled Freelancer Invoice Tracker spec serves as a deliberately small, public stand-in for a confidential client PRD, so anyone can run it without NDA concern; it produces 30 test cases and 6 page objects. At 12 minutes per case plus 25 minutes per page object and 45 minutes of review ((30 × 12 + 6 × 25 + 45) / 60), that is 9.3 hours, or $790.50 of billable value, per run. Charge $29 a month for the seat and the tool pays for itself if it saves twenty minutes.
 
 Agencies get the second tier: shared run history in `data/runs.json`, compare-with-previous diffs, Markdown and CSV exports for client sign-off, and a telemetry drawer they can screenshot into a status report. The pitch is not "AI writes tests". It is "your NDA stays intact, your junior spends Friday on exploratory testing instead of boilerplate, and you can prove it with a trace".
 
@@ -42,7 +42,7 @@ The token math uses the fallback-estimated counts from the bundled sample run (1
 
 ![SpecShield QA studio: sample spec loaded, three Mastra agents complete, QA matrix tab open](https://raw.githubusercontent.com/AaronStark1/specshield-qa/main/docs/studio-overview.png)
 
-Load the sample, hit Run Pipeline, and watch three agent cards go pending → running → done with durations, token counts and mode chips. Then open the matrix tab (filter by Security, search "GSTIN"), the Playwright tab (switch between the combined spec and each page object, copy, download), the telemetry tab (waterfall bars, trace ID) and history (reload, compare, delete). The demo runs identically with Ollama stopped — the header chip flips to amber Deterministic Fallback and nothing errors.
+Load the sample (Load Sample Spec (Invoice Tracker)), hit Run Pipeline, and watch three agent cards go pending → running → done with durations, token counts and mode chips. Then open the matrix tab (filter by Security, search "overdue" or "password"), the Playwright tab (switch between the combined spec and each page object, copy, download), the telemetry tab (waterfall bars, trace ID, codegen strategy) and history (reload, compare, delete). The demo runs identically with Ollama stopped — the header chip flips to amber Deterministic Fallback and nothing errors.
 
 ## Code
 
@@ -95,13 +95,13 @@ export const specShieldWorkflow = createWorkflow({
   .commit();
 ```
 
-Each step emits `step:start`, runs inside `withAgentSpan`, and emits `step:end` with a preview like `5 roles · 23 criteria`, `30 test cases`, `6 page objects · 30 tests`. The route opens an SSE stream (`POST /api/run`), subscribes to those events, and forwards them as `event: <type>` / `data: <json>`. A `: ping` comment every 10 seconds keeps slow Gemma steps alive through proxies. On `pipeline:end` the full `RunRecord` is persisted.
+Each step emits `step:start`, runs inside `withAgentSpan`, and emits `step:end` with a preview like `3 roles · 22 criteria`, `30 test cases`, `6 page objects · 30 tests`. The route opens an SSE stream (`POST /api/run`), subscribes to those events, and forwards them as `event: <type>` / `data: <json>`. A `: ping` comment every 10 seconds keeps slow Gemma steps alive through proxies. On `pipeline:end` the full `RunRecord` is persisted.
 
 I read the installed `dist/agent/index.d.ts`, `dist/workflows/*.d.ts` and `shared.types.d.ts` before writing a line, because the prompt warned that `createRun` vs `createRunAsync` and `usage.inputTokens` vs `promptTokens` moved between versions. In 1.77 the call is `agent.generate(prompt, { modelSettings: { temperature, maxTokens } })` returning `FullOutput` with `text` and `usage: { inputTokens, outputTokens, totalTokens }`, and the workflow runner is `const run = await workflow.createRun(); await run.start({ inputData })`. I normalise both naming schemes so a future Mastra bump does not silently zero the ROI widget.
 
 ### Making Gemma reliable on structured output
 
-Gemma through Ollama does not reliably honour JSON-schema tool calling, so each system prompt pastes the TypeScript interface and ends with "Respond with a single JSON object and nothing else. No markdown fences, no commentary." The matrix prompt additionally demands 18–40 cases with at least 3 Security and 3 Boundary, and concrete values like "an 11 MB PDF" and "GSTIN 27AAPFU0939F1ZV". The codegen prompt demands `import { test, expect } from "@playwright/test"`, one POM per screen, `test.describe` per feature, login fixtures and `// covers` comments.
+Gemma through Ollama does not reliably honour JSON-schema tool calling, so each system prompt pastes the TypeScript interface, instructs minified single-line JSON, and ends with "Respond with a single minified JSON on a single line and nothing else. No markdown fences, no commentary." The matrix prompt requests 12–20 test cases with at least 2 per category, and concrete values like "a 65-character password", "quantity 1000", and "a payment $0.01 over the outstanding balance". The codegen prompt generates test body blocks with `// covers` comments, paired with deterministic Page Object Model classes.
 
 The response goes through a small, strict parser:
 
@@ -180,7 +180,7 @@ What the trace found: the QA Matrix step dominates both tokens and latency. In a
 
 2. Zero marginal token cost. The sample run is 22,625 tokens. At closed-API prices that is $0.19 a run, $193 per thousand runs. On Gemma it is $0.00. That is not a rounding error — it is the difference between a flat $29 seat with healthy margin and a usage-metered tool that punishes iteration. Unlimited re-runs mean the QA engineer actually iterates on the matrix instead of hoarding credits.
 
-3. Modularity and control. Swapping `gemma2:9b` for `gemma3:4b` is one env var. The three Mastra agents are plain TypeScript with prompts in `server/mastra/prompts/` — no black-box pipeline. If the vendor portal gains a new tax regime, I add five lines to the parser prompt and a canned case, not a support ticket. The open-weights path to fine-tuning on past runs is real because the data never left the building.
+3. Modularity and control. Swapping `gemma2:9b` for `gemma3:4b` is one env var. The three Mastra agents are plain TypeScript with prompts in `server/mastra/prompts/` — no black-box pipeline. If the invoice tracker gains a new discount or currency rule, I add five lines to the parser prompt and a canned case, not a support ticket. The open-weights path to fine-tuning on past runs is real because the data never left the building.
 
 4. No vendor lock-in and offline. The studio runs on a train, in a basement test lab, or behind a client's firewall. Vite serves the UI, Hono serves the API and `dist/` in production, Ollama serves the model. Kill the network and the only thing that changes is the header chip. That independence is why open innovation compounds: every piece can be replaced, self-hosted, or forked without asking permission.
 
@@ -192,9 +192,9 @@ What the trace found: the QA Matrix step dominates both tokens and latency. In a
 
 ## My Agent Session
 
-<!-- DEVRELAY SESSION: {% embed <devrelay-session-url> %}  — built in one OpenCode (Muse Spark 1.3) session using this repo's OPENCODE_PROMPT.md -->
+<!-- DEVRELAY SESSION: {% embed <devrelay-session-url> %}  — built in one OpenCode (Muse Spark 1.3) session using this repo's OPENCODE_PROMPT.md, and follow-up was done in Antigravity -->
 
-Built in one OpenCode (Muse Spark 1.3) session from this repo's `OPENCODE_PROMPT.md`. Session URL to be pasted before publishing.
+Built in one OpenCode (Muse Spark 1.3) session from this repo's `OPENCODE_PROMPT.md`, with follow-up in Antigravity. Session URL to be pasted before publishing.
 
 ## My First User
 

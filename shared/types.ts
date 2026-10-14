@@ -15,7 +15,7 @@ export interface ParsedRequirements {
 }
 
 export interface TestCase {
-  id: string;                       // "VND-FUNC-001", "VND-BND-004", "VND-NEG-002", "VND-SEC-003"
+  id: string;                       // "FIT-FUNC-001", "FIT-BND-004", "FIT-NEG-002", "FIT-SEC-003"
   featureId: string;
   category: TestCategory;
   title: string;
@@ -28,7 +28,7 @@ export interface TestCase {
 }
 
 export interface PlaywrightSuite {
-  fileName: string;                 // "vendor-onboarding.spec.ts"
+  fileName: string;                 // "invoice-tracker.spec.ts"
   pageObjects: { className: string; fileName: string; code: string }[];
   specCode: string;                 // the .spec.ts importing POMs from ./pages/*
   combinedCode: string;             // single-file version: POM classes inlined above the tests
@@ -50,6 +50,8 @@ export interface TelemetryStep {
   sentryTraceId?: string;
   sentrySpanId?: string;
   error?: string;
+  codegenStrategy?: string;
+  progress?: { outputTokens: number; tokensPerSecond: number };
 }
 
 export interface RoiAssumptions {
@@ -99,11 +101,13 @@ export interface HealthResponse {
   forcedFallback: boolean;
   sentryEnabled: boolean;
   availableModels: string[];
+  contextLength: number | null;
 }
 
 export type PipelineEvent =
   | { type: "pipeline:start"; runId: string; mode: AgentMode; model: string }
   | { type: "step:start"; runId: string; step: TelemetryStep }
+  | { type: "step:progress"; runId: string; step: StepId; outputTokens: number; tokensPerSecond: number }
   | { type: "step:end"; runId: string; step: TelemetryStep; preview?: { label: string; value: string } }
   | { type: "pipeline:end"; runId: string; record: RunRecord }
   | { type: "error"; runId: string; message: string };
