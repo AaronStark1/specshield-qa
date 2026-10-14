@@ -39,7 +39,7 @@ The token math uses the real `usage` counts from a live `gemma2:9b` run of the b
 
 ## Demo
 
-![SpecShield QA studio: sample spec loaded, three Mastra agents complete, QA matrix tab open](https://raw.githubusercontent.com/AaronStark1/specshield-qa/main/docs/studio-overview.png)
+![SpecShield QA studio: Invoice Tracker sample loaded, all three Mastra agents finished on local Gemma, Sentry Agent Telemetry tab showing per-step durations and tokens](https://raw.githubusercontent.com/AaronStark1/specshield-qa/main/docs/studio-overview.png)
 
 Load the sample (Load Sample Spec (Invoice Tracker)), hit Run Pipeline, and watch three agent cards go pending → running → done with durations, token counts and mode chips. Then open the matrix tab (filter by Security, search "overdue" or "password"), the Playwright tab (switch between the combined spec and each page object, copy, download), the telemetry tab (waterfall bars, trace ID, codegen strategy) and history (reload, compare, delete). The demo runs identically with Ollama stopped — the header chip flips to amber Deterministic Fallback and nothing errors.
 
@@ -159,9 +159,11 @@ return await Sentry.startSpan(
 The chat span records `gen_ai.provider.name: ollama`, `gen_ai.request.model`, `temperature`, `max_tokens`, `gen_ai.input.messages`, `specshield.prompt_chars` at start and `gen_ai.response.model`, `gen_ai.output.messages`, `gen_ai.usage.input_tokens / output_tokens / total_tokens` at end. Span context trace/span IDs are copied into the `TelemetryStep` so the UI drawer can show them with the DSN empty — the collector is an in-process `Map<runId, TelemetryStep[]>`, and `Sentry.getActiveSpan()` guards make everything a no-op without init.
 
 <!-- Real snippet from server/services/telemetry.ts showing gen_ai.invoke_agent and gen_ai.chat spans with token attributes -->
-![Sentry trace waterfall: ai.pipeline root span with three invoke_agent children, each wrapping a chat gemma2:9b span](https://raw.githubusercontent.com/AaronStark1/specshield-qa/main/docs/sentry-waterfall.png)
+![Sentry trace waterfall: POST /api/run, then the ai.pipeline specShieldWorkflow span, then three invoke_agent spans, each wrapping a chat gemma2:9b span and the HTTP call to Ollama](https://raw.githubusercontent.com/AaronStark1/specshield-qa/main/docs/sentry-waterfall.png)
 
 ![Sentry span attributes for the QA Matrix Architect chat span: gen_ai.usage.input_tokens, output_tokens, request.model](https://raw.githubusercontent.com/AaronStark1/specshield-qa/main/docs/sentry-span-attributes.png)
+
+![Sentry Agents dashboard: the live run listed with its agents, 4 LLM calls, 7.1K total tokens and $0 total cost](https://raw.githubusercontent.com/AaronStark1/specshield-qa/main/docs/sentry-agents-overview.png)
 <!-- Paragraph "what I found and how I debugged it": name one concrete thing the trace revealed (e.g. the QA Matrix step dominates latency; a JSON parse failure that showed up as a fallback-tagged span). Use real numbers from a run. -->
 
 <!-- TODO BEFORE PUBLISHING: the numbers in the next sentence are PLACEHOLDERS written before Gemma was ever run on this machine. Replace every value with the real durations and gen_ai.usage.* token counts from your Sentry waterfall (Screenshot A/B). -->
