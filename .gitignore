@@ -1,0 +1,11 @@
+# DevRelay gateway, installed project-locally (binary + MLH/DEV credentials)
+.devrelay-home/
+# OpenCode project config contains machine-specific absolute paths
+opencode.json
+
+node_modules/
+dist/
+.env
+data/
+*.log
+.DS_Store
