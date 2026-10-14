@@ -158,16 +158,32 @@ return await Sentry.startSpan(
 
 The chat span records `gen_ai.provider.name: ollama`, `gen_ai.request.model`, `temperature`, `max_tokens`, `gen_ai.input.messages`, `specshield.prompt_chars` at start and `gen_ai.response.model`, `gen_ai.output.messages`, `gen_ai.usage.input_tokens / output_tokens / total_tokens` at end. Span context trace/span IDs are copied into the `TelemetryStep` so the UI drawer can show them with the DSN empty — the collector is an in-process `Map<runId, TelemetryStep[]>`, and `Sentry.getActiveSpan()` guards make everything a no-op without init.
 
-<!-- Real snippet from server/services/telemetry.ts showing gen_ai.invoke_agent and gen_ai.chat spans with token attributes -->
 ![Sentry trace waterfall: POST /api/run, then the ai.pipeline specShieldWorkflow span, then three invoke_agent spans, each wrapping a chat gemma2:9b span and the HTTP call to Ollama](https://raw.githubusercontent.com/AaronStark1/specshield-qa/main/docs/sentry-waterfall.png)
 
 ![Sentry span attributes for the QA Matrix Architect chat span: gen_ai.usage.input_tokens, output_tokens, request.model](https://raw.githubusercontent.com/AaronStark1/specshield-qa/main/docs/sentry-span-attributes.png)
 
 ![Sentry Agents dashboard: the live run listed with its agents, 4 LLM calls, 7.1K total tokens and $0 total cost](https://raw.githubusercontent.com/AaronStark1/specshield-qa/main/docs/sentry-agents-overview.png)
-<!-- Paragraph "what I found and how I debugged it": name one concrete thing the trace revealed (e.g. the QA Matrix step dominates latency; a JSON parse failure that showed up as a fallback-tagged span). Use real numbers from a run. -->
 
-<!-- TODO BEFORE PUBLISHING: the numbers in the next sentence are PLACEHOLDERS written before Gemma was ever run on this machine. Replace every value with the real durations and gen_ai.usage.* token counts from your Sentry waterfall (Screenshot A/B). -->
-What the trace found: the QA Matrix step dominates both tokens and latency. In a live-Gemma run the parser finishes in ~X s with ~N in / ~N out, the matrix takes ~X s with ~N in / ~N out, and codegen takes ~X s. When Gemma returns prose with fences, `extractJson` strips them silently and the span stays `success`; when it returns truncated JSON, the repair retry shows up as a second `gen_ai.chat` span under the same `invoke_agent`, and if that also fails the `invoke_agent` span is tagged `specshield.step_status: fallback` with the zod error captured via `Sentry.captureException`. That tag is how I verified fallback honesty in the UI — amber chips line up exactly with `fallback` spans.
+#### What the trace found, and how I debugged it
+
+My first live run looked fine in the UI and was quietly wrong. All three agent cards finished, but every one had an amber Fallback chip. The Ollama server log showed why: each chat completion was cut off at the two-minute mark. My Mac (a 16 GB MacBook Air M4) generates about 13 tokens per second with `gemma2:9b`, and the parser alone wanted more output than two minutes allows. The app's 120-second timeout killed the call, the repair retry was killed too, and the step fell back. Every run would have been 100% deterministic output while the header proudly said "Gemma".
+
+The fix was to spend fewer tokens rather than wait longer. I made every agent return minified single-line JSON, gave each step its own token budget, capped live matrices at 12 to 20 cases, and let Gemma write only the Playwright test bodies while page-object classes come from templates. I also stopped retrying after a timeout, raised the per-call timeout to five minutes, and raised Ollama's context window from 4,096 to 8,192 tokens.
+
+The Sentry trace above is the run that confirmed it. The whole pipeline took 3.87 minutes with all three agents on Gemma:
+
+| Agent | Duration | Input tokens | Output tokens |
+|---|---|---|---|
+| Requirement Parser | 83.8 s | 1,133 | 932 |
+| QA Matrix Architect | 73.1 s | 1,270 | 1,016 |
+| Playwright Codegen | 75.4 s | 2,216 | 611 |
+
+Two details in the waterfall answered questions I could not answer from logs. First, each `http.client` call to Ollama spans the full length of its `gen_ai.chat` span, so the time is all model generation, not my app. Second, Sentry computed the generation speed itself: the QA Matrix span reports 13.9 tokens per second. The latency budget is set by hardware, so the only lever that matters is how many tokens I ask for.
+
+The Agents dashboard adds one more line I did not plan for. Sentry lists 7.1K tokens for the run and a total cost of $0, because there is no per-token price for a model running on my own laptop.
+
+If a step does fail on Gemma now, it shows up in the trace rather than hiding behind a finished card. A validation failure adds a second `gen_ai.chat` span under the same agent for the repair attempt. If that fails too, the agent span is tagged `specshield.step_status: fallback` and the error is sent to Sentry, matching the amber chip in the UI.
+
 
 ### Local persistence and the fallback mode
 
