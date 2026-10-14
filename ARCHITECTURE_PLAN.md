@@ -58,7 +58,7 @@ Work through these top to bottom. Total time: roughly 25 minutes plus the Gemma 
 brew install ollama            # or download from https://ollama.com/download
 
 # 2. Start the server (keep this terminal open, or run `brew services start ollama`).
-ollama serve
+OLLAMA_CONTEXT_LENGTH=8192 ollama serve     # default context is 4096, too small for the codegen step
 
 # 3. In a second terminal, pull Gemma. gemma2:9b is ~5.4 GB and fits a 16 GB Mac comfortably.
 ollama pull gemma2:9b
@@ -408,8 +408,10 @@ from Hono on :8787, which is the single-port mode you want for the demo video.
 OLLAMA_BASE_URL=http://localhost:11434/v1
 GEMMA_MODEL=gemma2:9b            # or gemma3:12b / gemma3:4b
 GEMMA_TEMPERATURE=0.2
-GEMMA_MAX_TOKENS=4096
-OLLAMA_TIMEOUT_MS=120000
+GEMMA_MAX_TOKENS_PARSER=2048
+GEMMA_MAX_TOKENS_MATRIX=3072
+GEMMA_MAX_TOKENS_CODEGEN=2560
+OLLAMA_TIMEOUT_MS=300000          # per call; gemma2:9b on an M4 runs ~13 tok/s
 
 # ── Sentry Agent Tracing (leave DSN empty to run fully air-gapped) ──────────
 SENTRY_DSN=
@@ -536,7 +538,7 @@ export type PipelineEvent =
 | Gemma returns prose instead of JSON | `extractJson` + zod + one repair retry + per-step deterministic fallback |
 | Judge has no Ollama | Health probe → fallback mode with canned sample result; badge is honest about it |
 | Sentry DSN missing | `Sentry.startSpan` is a no-op without init; UI drawer reads the in-process collector instead |
-| 9B model slow on judge's machine | `GEMMA_MODEL=gemma3:4b` documented; SSE progress keeps the UI alive; 120 s timeout then fallback |
+| 9B model slow on judge's machine | Measured ~13 tok/s on an M4; minified JSON, per-step token budgets, template POMs and a 300 s timeout bring a live run to ~3.7 min. `GEMMA_MODEL=gemma3:4b` documented as the faster option |
 | Spec text leaks via Sentry | DSN empty by default; PII flag documented; article states it plainly |
 | Article rushed | `DEV_SUBMISSION.md` generated with the official section order and placeholders, so only screenshots, links and the user quote are left |
 

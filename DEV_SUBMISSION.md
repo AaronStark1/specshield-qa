@@ -10,7 +10,7 @@ tags: devchallenge, hf26challenge, gemma, mastra
 
 Boutique agencies and freelance QA engineers live under NDAs that forbid pasting client PRDs into cloud LLMs. I have watched a two-page registration story turn into an afternoon of spreadsheet test cases, then another afternoon of Playwright boilerplate. Four to six unbillable hours per sprint, every sprint, and the work is so mechanical it hurts.
 
-SpecShield QA is a local-first studio that takes that PRD and returns three things: structured requirements with roles, features and validation rules; a filterable QA matrix of 30 test cases across Functional, Boundary, Negative and Security; and a downloadable Playwright suite built on the Page Object Model with one class per screen, `getByTestId` locators, login fixtures and a `// covers FIT-FUNC-001` comment on every test.
+SpecShield QA is a local-first studio that takes that PRD and returns three things: structured requirements with roles, features and validation rules; a filterable QA matrix across Functional, Boundary, Negative and Security (14 cases from live Gemma on the bundled sample, 30 in the deterministic demo mode); and a downloadable Playwright suite built on the Page Object Model with one class per screen, `getByTestId` locators, login fixtures and a `// covers FIT-FUNC-001` comment on every test.
 
 The whole pipeline runs on Gemma locally through Ollama, so the spec never leaves the laptop and inference costs $0.00. Every agent step is traced with Sentry Agent Tracing, past runs persist to a local JSON file, and the app stays fully usable when Ollama is not installed thanks to a deterministic fallback that is honest about its `mode`.
 
@@ -18,7 +18,7 @@ The whole pipeline runs on Gemma locally through Ollama, so the spec never leave
 
 ### The Side Hustle Business Model
 
-The buyer is a freelance QA engineer billing $85 an hour, or a five-person agency that onboards two clients' worth of regression suites a month. The bundled Freelancer Invoice Tracker spec serves as a deliberately small, public stand-in for a confidential client PRD, so anyone can run it without NDA concern; it produces 30 test cases and 6 page objects. At 12 minutes per case plus 25 minutes per page object and 45 minutes of review ((30 × 12 + 6 × 25 + 45) / 60), that is 9.3 hours, or $790.50 of billable value, per run. Charge $29 a month for the seat and the tool pays for itself if it saves twenty minutes.
+The buyer is a freelance QA engineer billing $85 an hour, or a five-person agency that onboards two clients' worth of regression suites a month. The bundled Freelancer Invoice Tracker spec serves as a deliberately small, public stand-in for a confidential client PRD, so anyone can run it without NDA concern; a live Gemma run produces 14 test cases and 5 page objects. At 12 minutes per case plus 25 minutes per page object and 45 minutes of review ((14 × 12 + 5 × 25 + 45) / 60), that is 5.6 hours, or $476 of billable value, per run. Charge $29 a month for the seat and the tool pays for itself if it saves twenty minutes.
 
 Agencies get the second tier: shared run history in `data/runs.json`, compare-with-previous diffs, Markdown and CSV exports for client sign-off, and a telemetry drawer they can screenshot into a status report. The pitch is not "AI writes tests". It is "your NDA stays intact, your junior spends Friday on exploratory testing instead of boilerplate, and you can prove it with a trace".
 
@@ -27,16 +27,15 @@ Agencies get the second tier: shared run history in `data/runs.json`, compare-wi
 
 | Metric | Local Gemma via Ollama | Closed cloud API |
 |---|---|---|
-| Cost per 1,000 spec runs (22,625 tokens/run: 12,186 in / 10,439 out) | $0.00 | ~$193 (1,000 × (12,186/1e6×$3 + 10,439/1e6×$15)) |
+| Cost per 1,000 spec runs (6,915 tokens/run: 4,511 in / 2,404 out) | $0.00 | ~$50 (1,000 × (4,511/1e6×$3 + 2,404/1e6×$15)) |
 | NDA exposure | None — localhost only, DSN empty by default | Spec text leaves the laptop on every call |
 | Data residency | Laptop disk (`data/runs.json`) | Vendor region, retention policy applies |
 | Rate limits | None — unlimited iterations | Per-minute caps stall the matrix step |
 | Offline | Works on a train, in an air-gapped client office | Requires connectivity |
 | Model swap / fine-tune | One env var (`GEMMA_MODEL=gemma3:4b`) | New SKU, new price |
-| Margin on a $29 seat | ~$29 minus hosting ($0) | ~$29 minus ~$0.19/run in tokens |
+| Margin on a $29 seat | ~$29 minus hosting ($0) | ~$29 minus ~$0.05/run in tokens, metered |
 
-<!-- TODO BEFORE PUBLISHING: after a live Gemma run, replace the fallback-estimated token counts in the table and here with the real gen_ai.usage.* totals from Sentry. -->
-The token math uses the fallback-estimated counts from the bundled sample run (12,186 input, 10,439 output) at the $3/$15 per MTok assumption from `.env.example`. On live Gemma the counts come from `usage` directly; in fallback they are estimated as chars/4 so the comparison stays meaningful and is labelled "est.".
+The token math uses the real `usage` counts from a live `gemma2:9b` run of the bundled sample on a 16 GB MacBook Air M4 (4,511 input, 2,404 output, 220.9 s end to end) at the $3/$15 per MTok assumption from `.env.example`. On live Gemma the counts come from `usage` directly; in fallback they are estimated as chars/4 so the comparison stays meaningful and is labelled "est.".
 
 ## Demo
 
@@ -178,7 +177,7 @@ What the trace found: the QA Matrix step dominates both tokens and latency. In a
 
 1. 100% data privacy and NDA compliance. The spec is POSTed to localhost, sent to `http://localhost:11434/v1`, and stored in `./data`. With `SENTRY_DSN` empty — the default — nothing leaves the machine at all. When Sentry is enabled, only span attributes and optionally `gen_ai.input/output.messages` go to Sentry, and `SENTRY_SEND_DEFAULT_PII` documents that trade-off in plain language. I can demo this in a client's air-gapped office without a legal review.
 
-2. Zero marginal token cost. The sample run is 22,625 tokens. At closed-API prices that is $0.19 a run, $193 per thousand runs. On Gemma it is $0.00. That is not a rounding error — it is the difference between a flat $29 seat with healthy margin and a usage-metered tool that punishes iteration. Unlimited re-runs mean the QA engineer actually iterates on the matrix instead of hoarding credits.
+2. Zero marginal token cost. The live sample run is 6,915 tokens. At closed-API prices that is about five cents a run, roughly $50 per thousand runs. Five cents sounds trivial until you remember the sample is deliberately small: a real client PRD is several times longer, every re-run is billed again, and an agency multiplies it by every client. On Gemma it is $0.00 no matter how often you iterate. That is the difference between a flat $29 seat with predictable margin and a usage-metered tool that quietly punishes iteration. Unlimited re-runs mean the QA engineer actually iterates on the matrix instead of hoarding credits.
 
 3. Modularity and control. Swapping `gemma2:9b` for `gemma3:4b` is one env var. The three Mastra agents are plain TypeScript with prompts in `server/mastra/prompts/` — no black-box pipeline. If the invoice tracker gains a new discount or currency rule, I add five lines to the parser prompt and a canned case, not a support ticket. The open-weights path to fine-tuning on past runs is real because the data never left the building.
 

@@ -1,4 +1,10 @@
-# OpenCode Master One-Shot Prompt — SpecShield QA
+# Master Implementation Prompt — SpecShield QA
+
+This file has two parts. **Part 1** is the one-shot build prompt that was run in OpenCode
+(Muse Spark 1.3). **Part 2** is the follow-up that swapped the sample spec and fixed live Gemma
+latency; it was run in Antigravity 3.8 after the OpenCode quota ran out.
+
+## Part 1 — One-shot build (OpenCode, Muse Spark 1.3)
 
 > Copy everything below the horizontal rule into OpenCode (model: **Muse Spark 1.3**) as a
 > single first message, from inside the empty `specshield-qa` directory. Do not split it into
@@ -657,3 +663,207 @@ architecture diagram in ASCII, license) and `LICENSE` (MIT).
 When everything passes, print a final summary: the file tree, the commands to run, which
 checks you ran with their results, and anything that needs my manual input (Sentry DSN,
 screenshots, DevRelay session URL, first-user quote, GitHub URL).
+
+---
+
+## Part 2 — Follow-up: Invoice Tracker sample + live Gemma speed fix (Antigravity 3.8)
+
+> Give this to the agent with the `specshield-qa` folder open as the workspace. Instruction
+> used: *"Read OPENCODE_PROMPT.md and carry out everything under Part 2 as your
+> instructions. Work autonomously and finish with the summary described in Part C."*
+>
+> **Result on a 16 GB MacBook Air M4 with gemma2:9b:** all three steps on Gemma, 220.9 s end
+> to end (parser 80.1 s, matrix 81.9 s, codegen 59.0 s), 4,511 input / 2,404 output tokens,
+> 14 test cases and 5 page objects. Before this fix every call hit the 120 s timeout and the
+> whole run fell back after about 12 minutes.
+
+You are continuing work on SpecShield QA, a Vite + React + Hono + Mastra app in this workspace that was built in an earlier OpenCode session. Read `README.md`, `shared/types.ts` and `server/mastra/workflows/specShieldWorkflow.ts` first to orient yourself. Two follow-up changes are needed. Work autonomously, do not ask questions, and finish
+with the verification in Part C. Do not modify `ARCHITECTURE_PLAN.md`, `OPENCODE_PROMPT.md`,
+this file, `.gitignore`, `opencode.json`, `.devrelay-home/` or `data/`.
+
+### Part A — Replace the bundled sample with the Freelancer Invoice Tracker PRD
+
+The "Enterprise Vendor Onboarding & KAM Site Survey Portal" sample is retired. The new bundled
+sample is the Freelancer Invoice Tracker PRD below. Update every place that depends on it.
+
+#### A1. `shared/sampleSpec.ts`
+`SAMPLE_SPEC_TITLE = "Freelancer Invoice Tracker"`. `SAMPLE_SPEC` = this text verbatim
+(template literal; escape any backtick or `${` if present):
+
+```markdown
+# Freelancer Invoice Tracker — Product Requirements (v1.0)
+
+## Background
+Solo freelancers lose track of which invoices are unpaid. The Invoice Tracker lets a freelancer
+create clients, issue invoices, record payments and get overdue reminders.
+
+## User Roles
+- **Freelancer** — owns the account, creates clients and invoices, records payments.
+- **Client** — external; receives a public invoice link and can mark an invoice as "Payment Sent".
+- **Accountant** — read-only access to all invoices and a CSV export.
+
+## Functional Requirements
+
+### 3.1 Authentication (FR-AUTH)
+- FR-AUTH-01: Freelancers sign up with email and password. Passwords must be 8–64 characters with at least one number.
+- FR-AUTH-02: After 5 failed logins within 10 minutes the account is locked for 15 minutes.
+- FR-AUTH-03: Sessions expire after 60 minutes of inactivity.
+
+### 3.2 Clients (FR-CLI)
+- FR-CLI-01: A client has a name (required, 2–80 characters), email (required, valid format) and currency (USD, EUR, GBP or INR).
+- FR-CLI-02: Two clients cannot share the same email within one freelancer account; the error is "A client with this email already exists".
+- FR-CLI-03: A client with unpaid invoices cannot be deleted; the delete button is disabled with a tooltip.
+
+### 3.3 Invoices (FR-INV)
+- FR-INV-01: An invoice has a client, issue date, due date, 1–50 line items and an optional note (max 500 characters).
+- FR-INV-02: Each line item has a description (required), quantity (1–999) and unit price (0.01–1,000,000.00). Total is computed and shown to 2 decimals.
+- FR-INV-03: Due date must be on or after the issue date and no more than 180 days after it.
+- FR-INV-04: Invoice numbers are generated as INV-{YEAR}-{4 digits}, sequential per freelancer, never reused.
+- FR-INV-05: Status lifecycle: Draft → Sent → Paid | Overdue | Cancelled. Only Draft invoices can be edited.
+- FR-INV-06: Sending an invoice emails the client a public link. The link expires 90 days after the due date.
+
+### 3.4 Payments & Reminders (FR-PAY)
+- FR-PAY-01: A freelancer records a payment with amount and date. Partial payments are allowed; the invoice becomes Paid when the sum of payments equals the total.
+- FR-PAY-02: A payment cannot exceed the remaining balance; the error is "Amount exceeds outstanding balance".
+- FR-PAY-03: Invoices unpaid 1 day after the due date become Overdue automatically and the client receives a reminder email at +1, +7 and +14 days.
+- FR-PAY-04: The Client can click "Payment Sent" on the public link, which notifies the freelancer but does not change the status.
+
+### 3.5 Export (FR-EXP)
+- FR-EXP-01: Accountants can export all invoices for a date range as CSV. The export is limited to 12 months per request.
+
+## Non-Functional Requirements
+- NFR-SEC-01: Role-based access enforced on the server; Accountants receive 403 on any write endpoint.
+- NFR-SEC-02: The public invoice link uses an unguessable 32-character token and shows no other client data.
+- NFR-SEC-03: All free-text fields are rendered as plain text to prevent script injection.
+- NFR-PERF-01: Invoice list loads within 500 ms for 2,000 invoices.
+- NFR-A11Y-01: All forms are keyboard-navigable with visible focus states.
+```
+
+#### A2. `server/services/fallback/sampleCanned.ts` — rewrite the canned result
+Keep `specHash` / `isSampleSpec` as they are (they hash `SAMPLE_SPEC` at runtime). Replace all
+vendor content with a polished, hand-written result for the invoice tracker:
+
+- **Requirements:** 3 roles (Freelancer, Client, Accountant). Features `FR-AUTH`
+  Authentication, `FR-CLI` Clients, `FR-INV` Invoices, `FR-PAY` Payments & Reminders,
+  `FR-EXP` Export, `NFR` Security, Performance & Accessibility. One acceptance criterion per
+  FR/NFR ID in the spec (22 total), using the spec's own IDs. Fields with real constraints:
+  password, client name, client email, currency, line items, line description, quantity, unit
+  price, note, issue date, due date, payment amount, payment date, export date range.
+  Security surfaces: login lockout, session expiry, RBAC 403 for Accountant writes, public link
+  token, link expiry, script injection in free text.
+- **Test cases:** at least 28, ID prefix `FIT-` (`FIT-FUNC-001`, `FIT-BND-001`, `FIT-NEG-001`,
+  `FIT-SEC-001`). At least 8 Functional, 8 Boundary, 6 Negative, 6 Security. Concrete values,
+  for example: password of 7 / 8 / 64 / 65 characters; client name of 1 / 2 / 80 / 81
+  characters; quantity 0 / 1 / 999 / 1000; unit price 0.00 / 0.01 / 1,000,000.00 /
+  1,000,000.01; 50 vs 51 line items; note of 500 vs 501 characters; due date 180 vs 181 days
+  after issue; due date one day before issue date; 5th vs 6th failed login inside 10 minutes;
+  export range of 12 months vs 12 months + 1 day; duplicate client email; payment $0.01 over
+  the outstanding balance; editing a Sent invoice; deleting a client with an unpaid invoice;
+  Accountant POST returning 403; a 31-character or guessed public token; `<script>` in the
+  note rendered as text; public link opened 91 days after due date; partial payments summing
+  to the total flipping status to Paid; Overdue status and reminders at +1/+7/+14 days;
+  "Payment Sent" notifying without changing status; invoice numbers sequential and never
+  reused after cancellation.
+- **Playwright:** `fileName: "invoice-tracker.spec.ts"`, page objects `LoginPage`,
+  `ClientsPage`, `InvoiceEditorPage`, `PaymentsPage`, `PublicInvoicePage`, `ExportPage`. Every
+  test carries a `// covers FIT-...` comment and `coverage` covers every canned test case.
+
+#### A3. Other references (replace vendor-specific text everywhere outside the planning docs)
+- `src/components/editor/LoadSampleButton.tsx`: button label **Load Sample Spec (Invoice
+  Tracker)**; run-title placeholder `e.g. Invoice Tracker v1.0`.
+- `server/mastra/prompts/matrix.ts` and `codegen.ts`: replace the `GSTIN`, `11 MB PDF` and
+  `VND-` examples with generic ones (`a 65-character password`, `quantity 1000`, `a payment
+  $0.01 over the outstanding balance`, IDs `FIT-FUNC-001`), and keep the rule that the prefix
+  is derived from the spec title.
+- `shared/types.ts` comments, `server/services/fallback/generatePlaywright.ts` (add an
+  `invoice` → `invoice-tracker.spec.ts` mapping, keep the existing ones),
+  `server/services/fallback/parseRequirements.ts` (keep the tax-ID pattern, it is generic).
+- Search the repo (excluding `node_modules`, `dist`, `data`, the planning docs) for
+  `Vendor Onboarding`, `VND-`, `GSTIN`, `Enterprise Spec`, `vendor-onboarding`, `KAM` and clean
+  up anything left.
+
+#### A4. `README.md` and `DEV_SUBMISSION.md`
+- Update every mention of the old sample, the button label, the demo walkthrough (for example
+  search "overdue" or "password" instead of "GSTIN") and the example values in prose.
+- Recompute the sample numbers in the article (test-case count, page-object count, estimated
+  hours, billable value) from the new canned result using `computeRoi` with the default
+  assumptions. Show the arithmetic the same way the article does now.
+- Keep the NDA framing. Describe the invoice tracker as a deliberately small, public stand-in
+  for a confidential client spec, so readers can run it without any NDA concern.
+- Remove the claim that the pipeline returns results "in under a minute". Live Gemma timings
+  come from Part B measurements, not guesses.
+- Do NOT touch: the two `TODO BEFORE PUBLISHING` comments, the raw.githubusercontent image
+  URLs, the DevRelay placeholder, or the empty My First User template. Do not invent any user
+  quote, timing or token count.
+- In the My Agent Session placeholder comment, note that the app was built in one OpenCode
+  (Muse Spark 1.3) session and this follow-up was done in Antigravity. Keep it a comment.
+
+### Part B — Make live Gemma finish (it currently times out on every step)
+
+**Evidence from the Ollama server log on this machine (MacBook Air M4, 16 GB, gemma2:9b Q4_0):**
+generation runs at about 13 tokens per second. Ollama's loaded context is 4096 tokens. Every
+call is aborted by the app's 120 s `OLLAMA_TIMEOUT_MS` (Ollama logs `500 | 1m41s` and
+`500 | 2m0s` for the two Requirement Parser attempts), the repair retry then times out too, and
+each step falls back after about 4 minutes. A full run takes about 12 minutes and ends 100%
+in fallback. Fix it so a live run on this hardware finishes on Gemma, target under 5 minutes.
+
+#### B1. Spend fewer output tokens
+- In all three system prompts require **minified JSON on a single line** (no indentation, no
+  newlines inside the JSON). Pretty-printed JSON wastes a large share of output tokens.
+- Requirement Parser: keep the contract but instruct short values: descriptions ≤ 15 words,
+  constraints as terse fragments (`"8-64 chars"`, `"≥1 digit"`).
+- QA Matrix Architect (live Gemma only): 12–20 test cases, at least 2 per category, each
+  `given`/`when`/`then`/`expectedResult` ≤ 20 words. Fallback and canned keep their larger sets,
+  and `npm run smoke` (fallback) keeps asserting ≥ 18.
+- Playwright Codegen (live Gemma only): Gemma writes **only the test file body** (the
+  `test.describe` blocks with `// covers` comments, max 10 tests, P0/P1 first). The page object
+  classes are generated deterministically by the existing template generator from the parsed
+  requirements and merged into `pageObjects`, `specCode` and `combinedCode`. Coverage is
+  computed from the `// covers` comments. Record `specshield.codegen_strategy =
+  "gemma-tests+template-pom"` on the agent span and show it in the Telemetry tab.
+
+#### B2. Per-step budgets instead of one global limit
+- Replace the single `GEMMA_MAX_TOKENS` with per-step defaults: parser 2048, matrix 3072,
+  codegen 2560 (`GEMMA_MAX_TOKENS_PARSER`, `_MATRIX`, `_CODEGEN` env vars; keep
+  `GEMMA_MAX_TOKENS` as an override for all three if set).
+- Raise the default `OLLAMA_TIMEOUT_MS` to `300000` (per call) in `server/env.ts` and
+  `.env.example`. Do not edit `.env`; print a note telling me to update it.
+- **Do not repair-retry after a timeout or abort.** Only retry when the model returned text that
+  failed JSON/zod validation, and then send a short repair prompt: the zod error plus the
+  invalid output, not the whole original prompt again.
+
+#### B3. Context length visibility
+- `GET /api/health` additionally calls Ollama's native `GET {origin}/api/ps` (derive the origin
+  by stripping `/v1` from `OLLAMA_BASE_URL`) and returns `contextLength` for the loaded model
+  (null if not loaded). Add it to `HealthResponse`.
+- When `contextLength` is a number below 8192, show a small amber hint in the header:
+  `Context 4096 — restart Ollama with OLLAMA_CONTEXT_LENGTH=8192`.
+- Document in README: `OLLAMA_CONTEXT_LENGTH=8192 ollama serve`, and `gemma3:4b` as the faster
+  option (`GEMMA_MODEL=gemma3:4b`) for slower laptops.
+
+#### B4. Live progress while Gemma generates
+- If the installed `@mastra/core` exposes a streaming API on `Agent` (read the typings; for
+  example `agent.stream(...)` with a text stream), use it for live mode, accumulate the text,
+  and emit a new `PipelineEvent` `{ type: "step:progress"; runId; step: StepId; outputTokens:
+  number; tokensPerSecond: number }` at most once per second. Approximate tokens as chars/4
+  while streaming and replace with real `usage` at the end.
+- `AgentStepCard` shows `≈ 412 tokens · 13.1 tok/s` under the elapsed timer while running.
+- If streaming is not available in the installed version, skip B4 entirely and say so in the
+  final summary. Do not fake progress.
+
+#### B5. Measure, don't guess
+After B1–B4, with Ollama running (`curl -s localhost:11434/api/version` must answer), run
+`scripts/sample-run.ts` once against the live model. Print per-step duration, input and output
+tokens, mode, and the total. If any step still falls back, read the error recorded in its
+`TelemetryStep`, fix the cause, and run again (max 3 attempts). Report the final numbers in
+your summary. Do NOT write these numbers into `DEV_SUBMISSION.md`; I will take them from
+Sentry.
+
+### Part C — Verification
+1. `npm run typecheck`, `npm run lint`, `npm run build`, `npm run smoke` all pass.
+2. `grep -rnE "Vendor Onboarding|VND-|GSTIN|Enterprise Spec|vendor-onboarding" --exclude-dir={node_modules,dist,data,.git,.devrelay-home} --exclude={ARCHITECTURE_PLAN.md,OPENCODE_PROMPT.md} .` returns nothing.
+3. The live run from B5 completes with every step `mode: "gemma"`, or you explain exactly which
+   step fell back and why.
+4. Use the terminal for git (the repo-local `user.email` is already set; do not change git config). One commit on `main`: `feat: invoice tracker sample and live Gemma latency fixes`. Do not push.
+5. Final summary: files changed, the live timing table from B5, whether B4 streaming was
+   implemented, and what I must change in my local `.env`.
