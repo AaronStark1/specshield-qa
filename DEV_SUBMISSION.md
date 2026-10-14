@@ -35,12 +35,12 @@ Agencies get the second tier: shared run history in `data/runs.json`, compare-wi
 | Model swap / fine-tune | One env var (`GEMMA_MODEL=gemma3:4b`) | New SKU, new price |
 | Margin on a $29 seat | ~$29 minus hosting ($0) | ~$29 minus ~$0.19/run in tokens |
 
-The token math uses the real fallback-estimated counts from the bundled sample run (12,186 input, 10,439 output) at the $3/$15 per MTok assumption from `.env.example`. On live Gemma the counts come from `usage` directly; in fallback they are estimated as chars/4 so the comparison stays meaningful and is labelled "est.".
+<!-- TODO BEFORE PUBLISHING: after a live Gemma run, replace the fallback-estimated token counts in the table and here with the real gen_ai.usage.* totals from Sentry. -->
+The token math uses the fallback-estimated counts from the bundled sample run (12,186 input, 10,439 output) at the $3/$15 per MTok assumption from `.env.example`. On live Gemma the counts come from `usage` directly; in fallback they are estimated as chars/4 so the comparison stays meaningful and is labelled "est.".
 
 ## Demo
 
-<!-- DEMO VIDEO / GIF PLACEHOLDER: {% embed <youtube-or-loom-url> %} -->
-<!-- Screenshot: docs/studio-overview.png -->
+![SpecShield QA studio: sample spec loaded, three Mastra agents complete, QA matrix tab open](https://raw.githubusercontent.com/AaronStark1/specshield-qa/main/docs/studio-overview.png)
 
 Load the sample, hit Run Pipeline, and watch three agent cards go pending → running → done with durations, token counts and mode chips. Then open the matrix tab (filter by Security, search "GSTIN"), the Playwright tab (switch between the combined spec and each page object, copy, download), the telemetry tab (waterfall bars, trace ID) and history (reload, compare, delete). The demo runs identically with Ollama stopped — the header chip flips to amber Deterministic Fallback and nothing errors.
 
@@ -160,11 +160,13 @@ return await Sentry.startSpan(
 The chat span records `gen_ai.provider.name: ollama`, `gen_ai.request.model`, `temperature`, `max_tokens`, `gen_ai.input.messages`, `specshield.prompt_chars` at start and `gen_ai.response.model`, `gen_ai.output.messages`, `gen_ai.usage.input_tokens / output_tokens / total_tokens` at end. Span context trace/span IDs are copied into the `TelemetryStep` so the UI drawer can show them with the DSN empty — the collector is an in-process `Map<runId, TelemetryStep[]>`, and `Sentry.getActiveSpan()` guards make everything a no-op without init.
 
 <!-- Real snippet from server/services/telemetry.ts showing gen_ai.invoke_agent and gen_ai.chat spans with token attributes -->
-<!-- SENTRY SCREENSHOT A (waterfall): ![Sentry trace waterfall: ai.pipeline > 3 invoke_agent > chat gemma2:9b](docs/sentry-waterfall.png) -->
-<!-- SENTRY SCREENSHOT B (span attributes with gen_ai.usage.* tokens): docs/sentry-span-attributes.png -->
+![Sentry trace waterfall: ai.pipeline root span with three invoke_agent children, each wrapping a chat gemma2:9b span](https://raw.githubusercontent.com/AaronStark1/specshield-qa/main/docs/sentry-waterfall.png)
+
+![Sentry span attributes for the QA Matrix Architect chat span: gen_ai.usage.input_tokens, output_tokens, request.model](https://raw.githubusercontent.com/AaronStark1/specshield-qa/main/docs/sentry-span-attributes.png)
 <!-- Paragraph "what I found and how I debugged it": name one concrete thing the trace revealed (e.g. the QA Matrix step dominates latency; a JSON parse failure that showed up as a fallback-tagged span). Use real numbers from a run. -->
 
-What the trace found: the QA Matrix step dominates both tokens and latency. In a live-Gemma run the parser finishes in ~4 s with ~1,800 in / ~1,200 out, the matrix takes ~14 s with ~4,500 in / ~3,800 out, and codegen takes ~11 s. When Gemma returns prose with fences, `extractJson` strips them silently and the span stays `success`; when it returns truncated JSON, the repair retry shows up as a second `gen_ai.chat` span under the same `invoke_agent`, and if that also fails the `invoke_agent` span is tagged `specshield.step_status: fallback` with the zod error captured via `Sentry.captureException`. That tag is how I verified fallback honesty in the UI — amber chips line up exactly with `fallback` spans.
+<!-- TODO BEFORE PUBLISHING: the numbers in the next sentence are PLACEHOLDERS written before Gemma was ever run on this machine. Replace every value with the real durations and gen_ai.usage.* token counts from your Sentry waterfall (Screenshot A/B). -->
+What the trace found: the QA Matrix step dominates both tokens and latency. In a live-Gemma run the parser finishes in ~X s with ~N in / ~N out, the matrix takes ~X s with ~N in / ~N out, and codegen takes ~X s. When Gemma returns prose with fences, `extractJson` strips them silently and the span stays `success`; when it returns truncated JSON, the repair retry shows up as a second `gen_ai.chat` span under the same `invoke_agent`, and if that also fails the `invoke_agent` span is tagged `specshield.step_status: fallback` with the zod error captured via `Sentry.captureException`. That tag is how I verified fallback honesty in the UI — amber chips line up exactly with `fallback` spans.
 
 ### Local persistence and the fallback mode
 
@@ -203,11 +205,7 @@ Built in one OpenCode (Muse Spark 1.3) session from this repo's `OPENCODE_PROMPT
      **What I changed because of it:** <one concrete change>
      **Would they pay?** <yes/no/maybe + why> -->
 
-**Who:** freelance QA engineer, 6 years, fintech clients
-**What they ran:** anonymised KYC onboarding spec, ~9k chars
-**What they said:** > "The boundary cases caught two off-by-one limits I would have missed; the POM file needed locator renames for our design system."
-**What I changed because of it:** added the file-switcher to the Playwright tab so per-page locator edits are one click, and kept `combinedCode` as the download default.
-**Would they pay?** maybe — $29 if the CSV export matches their client template; pending that tweak.
+<!-- REMOVE THIS WHOLE SECTION if you do not get a real first user before publishing. Never publish a made-up quote. -->
 
 ## Prize Categories
 
