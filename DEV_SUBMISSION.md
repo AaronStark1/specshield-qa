@@ -35,7 +35,9 @@ The token math uses the real `usage` counts from a live `gemma2:9b` run of the b
 
 ## Demo
 
-![SpecShield QA studio: Invoice Tracker sample loaded, all three Mastra agents finished on local Gemma, Sentry Agent Telemetry tab showing per-step durations and tokens](https://raw.githubusercontent.com/AaronStark1/specshield-qa/main/docs/studio-overview.png)
+![SpecShield QA demo: the Invoice Tracker sample runs through three Mastra agents on local Gemma 2 9B, then the QA matrix is filtered to Security, a case is expanded, and the Playwright code, Sentry telemetry and run history tabs are shown](https://raw.githubusercontent.com/AaronStark1/specshield-qa/main/docs/demo.gif)
+
+*A real run on local Gemma, with the six-minute wait fast-forwarded 57x. It was recorded headless by a Playwright script, so a Playwright test generator filmed its own demo. Recording on the same laptop slowed Gemma down, which is why these timings are longer than the traced run further down.*
 
 Load the sample (Load Sample Spec (Invoice Tracker)), hit Run Pipeline, and watch three agent cards go pending → running → done with durations, token counts and mode chips. Then open the matrix tab (filter by Security, search "overdue" or "password"), the Playwright tab (switch between the combined spec and each page object, copy, download), the telemetry tab (waterfall bars, trace ID, codegen strategy) and history (reload, compare, delete). The demo runs identically with Ollama stopped — the header chip flips to amber Deterministic Fallback and nothing errors.
 

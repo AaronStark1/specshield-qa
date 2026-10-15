@@ -29,7 +29,7 @@ export function AgentStepCard({ step }: { step: TelemetryStep }) {
         {(step.status === "success" || step.status === "fallback") && <CheckCircle2 size={15} className={step.status === "success" ? "text-emerald-400" : "text-amber-300"} />}
         {step.status === "error" && <AlertTriangle size={15} className="text-red-400" />}
         <span className="text-[13px] font-semibold">{step.agentName}</span>
-        <span className="ml-auto"><Badge tone={tone}>{step.mode === "gemma" ? "Gemma" : "Fallback"}</Badge></span>
+        {step.status !== "pending" && <span className="ml-auto"><Badge tone={tone}>{step.mode === "gemma" ? "Gemma" : "Fallback"}</Badge></span>}
       </div>
       <div className="mt-2 font-mono text-[11px] text-[#9ca3af]">
         {running ? (
