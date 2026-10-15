@@ -199,6 +199,8 @@ If a step does fail on Gemma now, it shows up in the trace rather than hiding be
 
 {% agent_session specshield-qa-one-shot-build-in-opencode-muse-spark-13-dardxr %}
 
+[Open the full session on DEV](https://dev.to/agent_sessions/specshield-qa-one-shot-build-in-opencode-muse-spark-13-dardxr) if the embed above does not load.
+
 This is the complete one-shot build: one prompt (Part 1 of [`OPENCODE_PROMPT.md`](https://github.com/AaronStark1/specshield-qa/blob/main/OPENCODE_PROMPT.md)) to a passing acceptance checklist, 162 messages and 162 tool calls with OpenCode running Muse Spark 1.3. The follow-up that swapped the sample spec and fixed live Gemma latency (Part 2 of the same file) ran in Antigravity after my OpenCode quota ran out, so it is not in this transcript. Local paths are redacted, and long file contents and tool outputs are truncated.
 
 ## Prize Categories
