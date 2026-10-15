@@ -2,6 +2,7 @@
 title: "SpecShield QA: Turning NDA-Locked Specs into Playwright Suites with Local Gemma, Mastra and Sentry"
 published: false
 tags: devchallenge, hf26challenge, gemma, mastra
+cover_image: https://raw.githubusercontent.com/AaronStark1/specshield-qa/main/docs/studio-overview.png
 ---
 
 *This is a submission for the [Hacktoberfest Open-Source AI Challenge: Week 2](https://dev.to/challenges/hacktoberfest-week2-2026-10-12) (Side Hustle)*
@@ -14,16 +15,11 @@ SpecShield QA is a local-first studio that takes that PRD and returns three thin
 
 The whole pipeline runs on Gemma locally through Ollama, so the spec never leaves the laptop and inference costs $0.00. Every agent step is traced with Sentry Agent Tracing, past runs persist to a local JSON file, and the app stays fully usable when Ollama is not installed thanks to a deterministic fallback that is honest about its `mode`.
 
-<!-- 2–3 paragraphs: the problem (NDA + 4–6 unbillable hours), what SpecShield QA does, who pays. -->
-
 ### The Side Hustle Business Model
 
 The buyer is a freelance QA engineer billing $85 an hour, or a five-person agency that onboards two clients' worth of regression suites a month. The bundled Freelancer Invoice Tracker spec serves as a deliberately small, public stand-in for a confidential client PRD, so anyone can run it without NDA concern; a live Gemma run produces 14 test cases and 5 page objects. At 12 minutes per case plus 25 minutes per page object and 45 minutes of review ((14 × 12 + 5 × 25 + 45) / 60), that is 5.6 hours, or $476 of billable value, per run. Charge $29 a month for the seat and the tool pays for itself if it saves twenty minutes.
 
 Agencies get the second tier: shared run history in `data/runs.json`, compare-with-previous diffs, Markdown and CSV exports for client sign-off, and a telemetry drawer they can screenshot into a status report. The pitch is not "AI writes tests". It is "your NDA stays intact, your junior spends Friday on exploratory testing instead of boilerplate, and you can prove it with a trace".
-
-<!-- Who pays and why: $29/mo flat-rate seat for freelance QA; agency tier; the 5+ hours/sprint math. -->
-<!-- Unit Economics table: Local Gemma vs Closed Cloud API. Columns: Metric | Local Gemma via Ollama | Closed cloud API. Rows: cost per 1,000 spec runs, NDA exposure, data residency, rate limits, offline, model swap/fine-tune, margin on a $29 seat. Use real token numbers from the sample run and the $3/$15 per MTok assumption. -->
 
 | Metric | Local Gemma via Ollama | Closed cloud API |
 |---|---|---|
@@ -46,7 +42,6 @@ Load the sample (Load Sample Spec (Invoice Tracker)), hit Run Pipeline, and watc
 ## Code
 
 {% embed https://github.com/AaronStark1/specshield-qa %}
-<!-- README has: npm install && npm run dev; ollama pull gemma2:9b; works without Ollama in fallback mode -->
 
 ```bash
 npm install && npm run dev   # API :8787 + UI :5173
@@ -184,12 +179,9 @@ The Agents dashboard adds one more line I did not plan for. Sentry lists 7.1K to
 
 If a step does fail on Gemma now, it shows up in the trace rather than hiding behind a finished card. A validation failure adds a second `gen_ai.chat` span under the same agent for the repair attempt. If that fails too, the agent span is tagged `specshield.step_status: fallback` and the error is sent to Sentry, matching the amber chip in the UI.
 
-
 ### Local persistence and the fallback mode
 
 `JsonStore` writes `./data/runs.json` atomically (temp file + rename), newest first, with `GET /api/runs` returning summaries without `spec`, `combinedCode` and `requirements`. `GET /api/health` probes `${OLLAMA_BASE_URL}/models` with a 1.5 s timeout cached for 30 s and tolerates the `:latest` suffix. `FORCE_FALLBACK=true` demos fallback even with Ollama running. `npm run smoke` boots the app on a random port in fallback, posts the sample spec, and asserts `pipeline:end` within 30 s with ≥18 cases, four categories and `@playwright/test` in the output. It prints `SMOKE: 30 cases [Functional,Boundary,Negative,Security] playwright=ok`.
-
-<!-- JsonStore, data/runs.json, health probe, FORCE_FALLBACK, why the judge can run it without Ollama -->
 
 ## Why Does Open Innovation Matter?
 
@@ -201,32 +193,14 @@ If a step does fail on Gemma now, it shows up in the trace rather than hiding be
 
 4. No vendor lock-in and offline. The studio runs on a train, in a basement test lab, or behind a client's firewall. Vite serves the UI, Hono serves the API and `dist/` in production, Ollama serves the model. Kill the network and the only thing that changes is the header chip. That independence is why open innovation compounds: every piece can be replaced, self-hosted, or forked without asking permission.
 
-<!-- Four sub-points, each a short paragraph with a concrete example from this build:
-     1. 100% data privacy & NDA compliance (spec never leaves the laptop; DSN empty by default; what Sentry sees when enabled)
-     2. Zero marginal token cost (unit economics; unlimited iterations; why a flat-rate tool is only viable on open weights)
-     3. Modularity & control (swap gemma2:9b → gemma3:12b with one env var; Mastra agents are plain TypeScript; fine-tune path)
-     4. No vendor lock-in / offline (works on a train, in a client's air-gapped office) -->
-
 ## My Agent Session
 
-<!-- DEVRELAY SESSION: {% embed <devrelay-session-url> %}  — built in one OpenCode (Muse Spark 1.3) session using this repo's OPENCODE_PROMPT.md, and follow-up was done in Antigravity -->
+{% agent_session specshield-qa-one-shot-build-in-opencode-muse-spark-13-dardxr %}
 
-Built in one OpenCode (Muse Spark 1.3) session from this repo's `OPENCODE_PROMPT.md`, with follow-up in Antigravity. Session URL to be pasted before publishing.
-
-## My First User
-
-<!-- Template, replace before publishing:
-     **Who:** <role, e.g. freelance QA engineer, 6 years, fintech clients>
-     **What they ran:** <anonymised spec type, size>
-     **What they said:** > "<quote>"
-     **What I changed because of it:** <one concrete change>
-     **Would they pay?** <yes/no/maybe + why> -->
-
-<!-- REMOVE THIS WHOLE SECTION if you do not get a real first user before publishing. Never publish a made-up quote. -->
+This is the complete one-shot build: one prompt (Part 1 of [`OPENCODE_PROMPT.md`](https://github.com/AaronStark1/specshield-qa/blob/main/OPENCODE_PROMPT.md)) to a passing acceptance checklist, 162 messages and 162 tool calls with OpenCode running Muse Spark 1.3. The follow-up that swapped the sample spec and fixed live Gemma latency (Part 2 of the same file) ran in Antigravity after my OpenCode quota ran out, so it is not in this transcript. Local paths are redacted, and long file contents and tool outputs are truncated.
 
 ## Prize Categories
 
 - Best Use of Gemma — all three agents run `gemma2:9b` locally through Ollama's OpenAI-compatible endpoint.
 - Mastra — `specShieldWorkflow` orchestrates three Mastra agents over an open-weight model.
 - Sentry Agent Tracing — `gen_ai.invoke_agent` / `gen_ai.chat` spans with latency and token usage; screenshots above.
-<!-- Add "Entire" only if the agent session is embedded above. -->
