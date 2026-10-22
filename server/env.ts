@@ -11,6 +11,7 @@ export interface AppEnv {
   SENTRY_ENVIRONMENT: string;
   SENTRY_TRACES_SAMPLE_RATE: number;
   SENTRY_SEND_DEFAULT_PII: boolean;
+  SENTRY_TRACE_URL_TEMPLATE: string;
   PORT: number;
   DATA_DIR: string;
   FORCE_FALLBACK: boolean;
@@ -40,6 +41,7 @@ export const env: AppEnv = {
   SENTRY_ENVIRONMENT: process.env.SENTRY_ENVIRONMENT?.trim() || "local",
   SENTRY_TRACES_SAMPLE_RATE: num(process.env.SENTRY_TRACES_SAMPLE_RATE, 1.0),
   SENTRY_SEND_DEFAULT_PII: process.env.SENTRY_SEND_DEFAULT_PII !== "false",
+  SENTRY_TRACE_URL_TEMPLATE: process.env.SENTRY_TRACE_URL_TEMPLATE?.trim() ?? "",
   PORT: num(process.env.PORT, 8787),
   DATA_DIR: process.env.DATA_DIR?.trim() || "./data",
   FORCE_FALLBACK: process.env.FORCE_FALLBACK === "true",

@@ -102,6 +102,10 @@ export interface HealthResponse {
   sentryEnabled: boolean;
   availableModels: string[];
   contextLength: number | null;
+  /** Newer API only: true once the Sentry SDK reports it initialised. Absent on older servers. */
+  sentryInitialized?: boolean;
+  /** Optional deep-link template containing "{traceId}"; null when not configured. */
+  sentryTraceUrlTemplate?: string | null;
 }
 
 export type PipelineEvent =

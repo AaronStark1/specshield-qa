@@ -2,36 +2,159 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Design tokens (mirrored in tailwind.config.ts) ─────────────────────── */
 :root {
   color-scheme: dark;
+  --ss-canvas: #070a0f;
+  --ss-surface-1: #0d131f;
+  --ss-surface-2: #111927;
+  --ss-surface-3: #162033;
+  --ss-edge: rgba(255, 255, 255, 0.08);
+  --ss-edge-strong: rgba(255, 255, 255, 0.14);
+  --ss-fg: #e5e7eb;
+  --ss-fg-muted: #9ca3af;
+  --ss-fg-dim: #6b7280;
+  --ss-emerald: #10b981;
+  --ss-amber: #f59e0b;
+  --ss-violet: #8b5cf6;
+  --ss-cyan: #06b6d4;
+  --ss-red: #ef4444;
+  --ss-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ss-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+html {
+  background: var(--ss-canvas);
+  scroll-behavior: smooth;
 }
 
 body {
-  background: #0b0f17;
-  color: #e5e7eb;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--ss-canvas);
+  /* two faint radial glows anchor the brand colours without a loud gradient */
+  background-image:
+    radial-gradient(900px 420px at 12% -8%, rgba(16, 185, 129, 0.07), transparent 62%),
+    radial-gradient(820px 400px at 88% -10%, rgba(139, 92, 246, 0.06), transparent 62%);
+  background-repeat: no-repeat;
+  color: var(--ss-fg);
+  font-family: var(--ss-font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "cv11", "ss01";
 }
 
-code, pre, textarea.code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+code,
+pre,
+kbd,
+samp,
+textarea.code {
+  font-family: var(--ss-font-mono);
 }
 
+::selection {
+  background: rgba(16, 185, 129, 0.28);
+  color: #fff;
+}
+
+/* ── Scrollbars (slim, unobtrusive) ─────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1f2937;
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
-::-webkit-scrollbar-track {
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
   background: transparent;
 }
 
-@keyframes pulse-ring {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.5); }
-  50% { box-shadow: 0 0 0 6px rgba(139, 92, 246, 0); }
+/* ── Focus ──────────────────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid rgba(16, 185, 129, 0.75);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
-.pulse-ring {
-  animation: pulse-ring 1.6s ease-in-out infinite;
+textarea:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline-offset: 0;
+}
+
+/* ── Component utilities ────────────────────────────────────────────────── */
+@layer components {
+  .panel {
+    @apply rounded-panel border border-edge bg-surface-1 shadow-panel;
+  }
+  .glass {
+    background: rgba(13, 19, 31, 0.74);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    backdrop-filter: blur(14px) saturate(140%);
+  }
+  .field {
+    @apply w-full rounded-md border border-edge bg-black/30 px-2.5 py-1.5 text-sm text-fg placeholder:text-fg-dim transition-colors duration-150 focus:border-emerald-500/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .status-dot {
+    @apply inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-current;
+    box-shadow: 0 0 6px currentColor;
+  }
+  /* optional CRT scanline overlay — apply to a `relative` container */
+  .scanlines::after {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.015) 0px,
+      rgba(255, 255, 255, 0.015) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    mix-blend-mode: overlay;
+  }
+  /* thin animated beam for active pipeline connectors */
+  .beam-track {
+    @apply relative overflow-hidden;
+  }
+  .beam-track::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.9), transparent);
+    animation: beam 1.6s ease-in-out infinite;
+  }
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .beam-track::after {
+    display: none;
+  }
 }

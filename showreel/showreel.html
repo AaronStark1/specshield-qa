@@ -1,0 +1,1446 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>SpecShield QA showreel</title>
+<!--
+  15-second SpecShield QA showreel, 1920x1080. Every frame is a pure function of time:
+  window.seek(t) restyles the whole stage for second t, nothing is carried between frames,
+  and nothing animates on its own (no CSS animations, timers or requestAnimationFrame).
+  window.renderAudio() renders the soundtrack offline and returns a base64 WAV.
+  render.mjs drives both; open showreel.html?scrub to step through it by hand.
+
+  Real data: tokens, timings and ROI come from the live Gemma run of 2026-10-14 13:12 in
+  data/runs.json; the QA matrix rows and the spec code come from the 30-case run of the
+  same sample PRD (shared/sampleSpec.ts) in that file.
+-->
+<style>
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+  src: url("node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2");
+}
+:root {
+  --canvas: #070a0f;
+  --surface: #0d131f;
+  --surface2: #111927;
+  --edge: rgba(255, 255, 255, 0.08);
+  --edge2: #1e293b;
+  --emerald: #10b981;
+  --violet: #8b5cf6;
+  --amber: #f59e0b;
+  --cyan: #06b6d4;
+  --fg: #e5e7eb;
+  --muted: #9ca3af;
+  --dim: #6b7280;
+  --faint: #4b5563;
+  --sans: Inter, system-ui, -apple-system, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--canvas); }
+body {
+  font-family: var(--sans);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss01";
+}
+#stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--canvas); }
+#world { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
+.layer { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; display: none; }
+.abs { position: absolute; }
+.mono { font-family: var(--mono); }
+.tnum { font-variant-numeric: tabular-nums; }
+.anchor { position: absolute; width: 0; height: 0; }
+.panel {
+  position: absolute;
+  background: var(--surface);
+  border: 1.5px solid var(--edge);
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 40px 80px -40px rgba(0, 0, 0, 0.85);
+}
+.cap { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.14em; color: var(--dim); }
+.badge {
+  display: inline-flex; align-items: center; height: 32px; padding: 0 11px; border-radius: 8px;
+  font-family: var(--mono); font-size: 16px; letter-spacing: 0.03em; border: 1px solid; white-space: nowrap;
+}
+.t-func { color: #cbd5e1; background: rgba(148, 163, 184, 0.1); border-color: rgba(148, 163, 184, 0.26); }
+.t-bnd { color: #fcd34d; background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.3); }
+.t-neg { color: #c4b5fd; background: rgba(139, 92, 246, 0.12); border-color: rgba(139, 92, 246, 0.34); }
+.t-sec { color: #67e8f9; background: rgba(6, 182, 212, 0.1); border-color: rgba(6, 182, 212, 0.32); }
+.p0 { color: #fca5a5; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); }
+.p1 { color: #fde68a; background: rgba(245, 158, 11, 0.07); border-color: rgba(245, 158, 11, 0.24); }
+svg.ico { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* hook */
+#hookLine {
+  position: absolute; left: 960px; top: 540px; white-space: pre;
+  font-family: var(--mono); font-size: 116px; line-height: 1; letter-spacing: -0.02em; color: var(--fg);
+}
+.hhalf { display: inline-block; position: relative; }
+.hw { display: inline-block; }
+#hookKey { position: absolute; left: 0; top: 0; color: var(--emerald); white-space: pre; }
+#hookCaret { position: absolute; left: calc(100% + 0.12em); top: 0.08em; width: 0.5em; height: 0.84em; background: var(--dim); transform-origin: 50% 100%; }
+
+/* app view */
+#hdr { left: 0; top: 0; width: 1920px; height: 124px; background: rgba(13, 19, 31, 0.86); border-bottom: 1.5px solid var(--edge); }
+#brand { left: 96px; top: 54px; height: 56px; display: flex; align-items: center; gap: 18px; }
+.slot { position: relative; display: inline-block; flex: none; }
+#slotHdr { width: 40px; height: 40px; }
+#slotHdr .ph { position: absolute; left: 9px; top: 9px; width: 22px; height: 22px; border: 1.5px solid rgba(255, 255, 255, 0.14); transform: rotate(45deg); border-radius: 2px; }
+.bName { font-size: 30px; line-height: 34px; font-weight: 600; letter-spacing: -0.015em; }
+.bSub { font-family: var(--mono); font-size: 13px; line-height: 18px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); }
+#hdrChips { right: 96px; top: 64px; display: flex; gap: 10px; }
+.chip { display: inline-flex; align-items: center; gap: 9px; height: 36px; padding: 0 14px; border-radius: 9px; font-family: var(--mono); font-size: 15px; letter-spacing: 0.08em; color: var(--muted); border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.03); }
+.chip.em { color: rgba(167, 243, 208, 0.82); border-color: rgba(16, 185, 129, 0.28); background: rgba(16, 185, 129, 0.07); }
+.chip.em i { width: 8px; height: 8px; border-radius: 50%; background: rgba(16, 185, 129, 0.75); }
+#editor { left: 260px; top: 176px; width: 1400px; height: 728px; }
+.edHead { position: absolute; left: 32px; top: 24px; display: flex; align-items: center; gap: 14px; color: var(--muted); }
+.edTitle { font-size: 26px; font-weight: 600; color: var(--fg); letter-spacing: -0.01em; }
+.badge.sample { color: #a5f3fc; background: rgba(6, 182, 212, 0.08); border-color: rgba(6, 182, 212, 0.26); height: 28px; font-size: 14px; }
+.seg { right: 28px; top: 20px; display: flex; gap: 4px; padding: 4px; border-radius: 12px; border: 1px solid var(--edge); background: rgba(0, 0, 0, 0.2); font-size: 18px; color: var(--muted); }
+.seg span { padding: 8px 14px; border-radius: 9px; }
+.seg span.on { background: rgba(255, 255, 255, 0.07); color: var(--fg); }
+#edArea { left: 28px; top: 92px; width: 1344px; height: 520px; overflow: hidden; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.06); background: rgba(0, 0, 0, 0.28); }
+#edText { position: absolute; left: 0; top: 0; width: 100%; padding: 20px 26px; font-family: var(--mono); font-size: 21px; line-height: 32px; color: var(--muted); white-space: pre-wrap; }
+#edText .h { color: var(--fg); }
+#edText .b { color: var(--faint); }
+#edMeta { left: 32px; top: 652px; font-size: 17px; color: var(--dim); }
+#runBtn {
+  right: 28px; top: 634px; width: 300px; height: 62px; border-radius: 13px; background: #059669; color: #ecfdf5;
+  display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 22px; font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+#runBtn kbd { font-family: var(--mono); font-size: 14px; padding: 3px 7px; border-radius: 6px; background: rgba(0, 0, 0, 0.2); color: rgba(236, 253, 245, 0.85); }
+
+/* pipeline */
+#pCap { left: 0; width: 1920px; top: 340px; text-align: center; font-size: 17px; }
+.nodeBg { width: 360px; height: 230px; background: var(--surface); border: 1.5px solid var(--edge); border-radius: 18px; transform-origin: 50% 50%; }
+.nodeRing { width: 360px; height: 230px; border: 2px solid var(--emerald); border-radius: 18px; transform-origin: 50% 50%; }
+.nodeFg { width: 360px; height: 230px; }
+.nStep { position: absolute; left: 28px; top: 22px; font-size: 16px; letter-spacing: 0.14em; color: var(--dim); }
+.nName { position: absolute; left: 28px; top: 46px; font-size: 27px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
+.port { position: absolute; left: 156px; top: 91px; width: 48px; height: 48px; border-radius: 50%; background: var(--canvas); border: 2px solid var(--edge2); }
+.port svg { position: absolute; left: -2px; top: -2px; width: 48px; height: 48px; overflow: visible; }
+.port .spin circle { fill: none; stroke: var(--emerald); stroke-width: 2.6; stroke-linecap: round; stroke-dasharray: 34 200; }
+.port .chk path { fill: none; stroke: var(--emerald); stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 30; }
+.nTime { position: absolute; left: 0; width: 360px; top: 166px; text-align: center; font-size: 19px; color: var(--muted); }
+#rail { top: 539px; height: 2px; background: var(--edge2); }
+#railLit { top: 539px; height: 2px; background: rgba(16, 185, 129, 0.5); left: 130px; }
+.chev { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; color: #334155; }
+.tk { width: 220px; text-align: center; }
+.tkNum { font-size: 32px; line-height: 38px; color: var(--fg); }
+.tkLab { font-size: 14px; line-height: 20px; }
+
+/* QA matrix */
+#mxPanel { left: 190px; top: 770px; width: 1540px; overflow: hidden; }
+#mxHead { left: 32px; top: 26px; display: flex; align-items: baseline; gap: 22px; white-space: nowrap; }
+.mxTitle { font-size: 27px; font-weight: 600; letter-spacing: -0.01em; }
+#mxCount { font-size: 18px; color: var(--muted); }
+#pills { right: 26px; top: 18px; display: flex; gap: 8px; }
+.pill { display: inline-flex; align-items: center; gap: 10px; height: 48px; padding: 0 17px; border-radius: 12px; font-size: 20px; color: #cbd5e1; border: 1px solid transparent; transform-origin: 50% 50%; }
+.pill .n { font-family: var(--mono); font-size: 16px; color: var(--dim); }
+#slotSec { width: 26px; height: 26px; }
+#thead { left: 0; top: 102px; width: 1540px; height: 24px; font-size: 14px; }
+#thead span { position: absolute; top: 0; }
+#rows { left: 0; top: 136px; width: 1540px; }
+.row { position: absolute; left: 0; width: 1540px; height: 68px; overflow: hidden; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.rowIn { position: absolute; left: 0; top: 0; width: 1540px; height: 260px; }
+.rowIn > * { position: absolute; }
+.c-id { left: 32px; top: 22px; font-size: 20px; color: #cbd5e1; }
+.c-cat { left: 236px; top: 18px; }
+.c-pri { left: 400px; top: 18px; }
+.c-title { left: 500px; top: 19px; width: 820px; font-size: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c-feat { left: 1360px; top: 22px; font-size: 17px; color: var(--dim); }
+.c-chev { left: 1486px; top: 24px; width: 20px; height: 20px; color: var(--faint); transform-origin: 50% 50%; }
+.row.x .rowBg { position: absolute; left: 0; top: 0; width: 1540px; height: 260px; background: rgba(6, 182, 212, 0.035); border-left: 3px solid rgba(6, 182, 212, 0.55); }
+.gwt { left: 236px; width: 1240px; height: 34px; display: flex; align-items: baseline; gap: 20px; white-space: nowrap; }
+.gwt b { font-family: var(--mono); font-size: 15px; font-weight: 600; letter-spacing: 0.12em; width: 76px; }
+.gwt span { font-size: 21px; color: #d1d5db; }
+
+/* code studio */
+#codeFrame { border: 1.5px solid rgba(255, 255, 255, 0.1); border-radius: 18px; pointer-events: none; }
+#codePanel { left: 190px; top: 790px; width: 1540px; height: 760px; }
+#chips { left: 24px; top: 22px; display: flex; gap: 10px; }
+.fchip { display: inline-flex; align-items: center; gap: 10px; height: 46px; padding: 0 16px; border-radius: 11px; font-family: var(--mono); font-size: 17px; color: var(--muted); border: 1px solid transparent; white-space: nowrap; }
+.fchip.on { color: var(--fg); background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.12); }
+.fchip .n { color: var(--faint); font-size: 15px; }
+.fchip .br { color: var(--dim); }
+#codeMeta { left: 32px; top: 100px; font-size: 16px; color: var(--dim); }
+#covWrap { right: 344px; top: 85px; height: 46px; display: flex; align-items: center; gap: 14px; white-space: nowrap; }
+#covWrap .cap { font-size: 14px; }
+#covNum { font-family: var(--mono); font-size: 18px; color: var(--emerald); }
+.covTrack { width: 150px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+#covBar { width: 150px; height: 6px; border-radius: 3px; background: rgba(16, 185, 129, 0.8); transform-origin: 0 50%; }
+.btn { height: 46px; display: inline-flex; align-items: center; gap: 10px; padding: 0 18px; border-radius: 11px; font-size: 19px; color: var(--fg); border: 1px solid rgba(255, 255, 255, 0.13); background: rgba(255, 255, 255, 0.04); transform-origin: 50% 50%; }
+#copyBtn { right: 186px; top: 85px; }
+#dlBtn { right: 24px; top: 85px; }
+#toast {
+  right: 120px; top: 146px; z-index: 5; height: 50px; display: flex; align-items: center; gap: 12px; padding: 0 20px;
+  border-radius: 12px; background: var(--surface2); border: 1px solid rgba(16, 185, 129, 0.35); font-size: 19px; white-space: nowrap;
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.9); transform-origin: 70% 0%;
+}
+#toast .m { font-family: var(--mono); font-size: 16px; color: var(--dim); }
+#codeArea { left: 24px; top: 150px; width: 1492px; height: 586px; overflow: hidden; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.06); background: #0a0e16; }
+#codeLines { position: absolute; left: 0; top: 20px; width: 1492px; -webkit-mask-image: linear-gradient(90deg, #000 93%, transparent 99.5%); }
+.cl { position: relative; height: 42px; font-family: var(--mono); font-size: 24px; line-height: 42px; white-space: pre; }
+.cl .g { position: absolute; left: 0; width: 70px; text-align: right; color: #374151; }
+.cl .x { position: absolute; left: 98px; color: #d1d5db; }
+.k { color: var(--violet); }
+.s { color: var(--amber); }
+.c { color: var(--dim); }
+.p { color: var(--dim); }
+#heroLine .c { color: var(--muted); }
+#slotSlash { color: transparent; }
+#lineHl { position: absolute; left: 0; width: 1492px; height: 42px; background: rgba(16, 185, 129, 0.06); border-left: 3px solid rgba(16, 185, 129, 0.5); transform-origin: 0 50%; }
+
+/* telemetry */
+#wfPanel { left: 190px; top: 850px; width: 1020px; height: 620px; }
+#wfHead { left: 32px; top: 26px; display: flex; align-items: baseline; gap: 20px; white-space: nowrap; }
+#wfHead .t { font-size: 27px; font-weight: 600; letter-spacing: -0.01em; }
+#wfHead .cap { font-size: 15px; }
+#wfTotal { right: 32px; top: 30px; font-size: 21px; color: var(--muted); }
+.wfLab { left: 48px; font-size: 22px; white-space: nowrap; }
+.wfDur { right: 48px; font-size: 20px; color: var(--muted); text-align: right; }
+.wfTrack { left: 48px; width: 924px; height: 26px; border-radius: 7px; background: rgba(255, 255, 255, 0.035); }
+.wfBar { height: 26px; border-radius: 7px; background: linear-gradient(90deg, #8b5cf6, #06b6d4); opacity: 0.88; }
+.wfGrid { width: 1px; top: 104px; height: 372px; background: rgba(255, 255, 255, 0.05); }
+#wfAxis { left: 48px; top: 492px; width: 924px; height: 20px; font-size: 15px; color: var(--dim); }
+#wfAxis span { position: absolute; top: 0; white-space: nowrap; }
+#wfCap { left: 48px; top: 556px; font-size: 16px; color: var(--dim); white-space: nowrap; }
+#roiCard { left: 1250px; top: 810px; width: 480px; height: 700px; }
+.roiHead { position: absolute; left: 32px; top: 28px; display: flex; align-items: baseline; gap: 16px; }
+.roiHead .t { font-size: 25px; font-weight: 600; }
+.roiHead .cap { font-size: 14px; }
+.roiRow { position: absolute; left: 32px; width: 416px; height: 136px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.roiRow .ic { position: absolute; left: 0; top: 30px; width: 30px; height: 30px; color: var(--dim); }
+.roiRow .v { position: absolute; left: 50px; top: 18px; display: flex; align-items: baseline; gap: 12px; white-space: nowrap; }
+.roiRow .v b { font-size: 46px; line-height: 54px; font-weight: 600; letter-spacing: -0.02em; display: inline-block; transform-origin: 0 70%; }
+.roiRow .v i { font-style: normal; font-size: 21px; color: var(--muted); }
+.roiRow .v b.lbl { font-size: 29px; font-weight: 600; color: #cbd5e1; letter-spacing: -0.01em; }
+.roiRow .sub { position: absolute; left: 50px; top: 82px; font-family: var(--mono); font-size: 14px; color: var(--dim); white-space: nowrap; }
+
+/* end card */
+#ecLock { left: 0; top: 396px; width: 1920px; height: 120px; display: flex; justify-content: center; align-items: center; gap: 34px; }
+#slotLogo { width: 104px; height: 104px; }
+#ecWord { font-size: 104px; line-height: 120px; font-weight: 700; letter-spacing: -0.035em; color: var(--fg); white-space: nowrap; }
+#ecTag { left: 0; top: 556px; width: 1920px; text-align: center; font-size: 31px; color: var(--muted); white-space: nowrap; }
+#ecUrl { left: 0; top: 626px; width: 1920px; text-align: center; font-size: 25px; color: var(--muted); white-space: nowrap; }
+
+/* overlays */
+#hero, #cursor { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+#cut { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: var(--canvas); display: none; }
+#scrub { position: fixed; left: 0; right: 0; bottom: 0; display: none; align-items: center; gap: 14px; padding: 10px 16px; background: rgba(0, 0, 0, 0.75); font: 14px var(--mono); color: var(--muted); z-index: 10; }
+#scrub input { flex: 1; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="world">
+    <!-- Bar 1: the hook -->
+    <div id="hook" class="layer">
+      <div id="hookLine"><span id="hookL" class="hhalf"><span class="hw">NDA</span> <span class="hw">says</span></span><span id="hookGap"> </span><span id="hookR" class="hhalf"><span class="hw">no</span> <span class="hw">cloud.</span><span id="hookKey" aria-hidden="true">no cloud.</span><span id="hookCaret"></span></span></div>
+    </div>
+
+    <!-- Bar 1-2: the studio, header and spec editor -->
+    <div id="app" class="layer">
+      <div id="hdr" class="abs">
+        <div id="brand" class="abs">
+          <span id="slotHdr" class="slot"><i class="ph"></i></span>
+          <div id="brandText"><div class="bName">SpecShield QA</div><div class="bSub">Local spec-to-test studio</div></div>
+        </div>
+        <div id="hdrChips" class="abs"><span class="chip em"><i></i>GEMMA2:9B · LOCAL</span><span class="chip">NDA SAFE</span></div>
+      </div>
+      <div id="editor" class="panel">
+        <div class="edHead">
+          <svg class="ico" width="24" height="24" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+          <span class="edTitle">Specification</span><span class="badge sample">SAMPLE</span><span class="cap" style="font-size:14px">PRD → test matrix</span>
+        </div>
+        <div class="seg abs"><span class="on">Sample · Invoice Tracker</span><span>Custom</span></div>
+        <div id="edArea" class="abs"><div id="edText"></div></div>
+        <div id="edMeta" class="abs mono tnum"></div>
+        <div id="runBtn" class="abs">
+          <svg class="ico" width="22" height="22" viewBox="0 0 24 24"><path d="M6 3l14 9-14 9z"/></svg><span>Run pipeline</span><kbd>⌘↵</kbd>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bar 2: three Mastra agents -->
+    <div id="pipe" class="layer">
+      <div id="pCap" class="abs cap">Mastra workflow · 3 agents · Gemma 2 9B · Ollama on localhost</div>
+      <div id="nb0" class="nodeBg abs" style="left:330px;top:425px"></div>
+      <div id="nb1" class="nodeBg abs" style="left:780px;top:425px"></div>
+      <div id="nb2" class="nodeBg abs" style="left:1230px;top:425px"></div>
+      <div id="nr0" class="nodeRing abs" style="left:330px;top:425px"></div>
+      <div id="nr1" class="nodeRing abs" style="left:780px;top:425px"></div>
+      <div id="nr2" class="nodeRing abs" style="left:1230px;top:425px"></div>
+      <div id="rail" class="abs"></div>
+      <div id="railLit" class="abs"></div>
+      <i id="railStart" class="anchor" style="left:130px;top:540px"></i>
+      <i id="railEnd" class="anchor" style="left:1790px;top:540px"></i>
+      <svg id="chev0" class="chev" style="left:766px;top:540px" viewBox="0 0 14 14"><path d="M4 2l6 5-6 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <svg id="chev1" class="chev" style="left:1216px;top:540px" viewBox="0 0 14 14"><path d="M4 2l6 5-6 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <svg id="chev2" class="chev" style="left:1792px;top:540px" viewBox="0 0 14 14"><path d="M4 2l6 5-6 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div id="nf0" class="nodeFg abs" style="left:330px;top:425px"></div>
+      <div id="nf1" class="nodeFg abs" style="left:780px;top:425px"></div>
+      <div id="nf2" class="nodeFg abs" style="left:1230px;top:425px"></div>
+      <div id="tkIn" class="abs tk" style="left:120px;top:452px"><div id="tkInNum" class="tkNum mono tnum">0</div><div class="cap tkLab">tokens in</div></div>
+      <div id="tkOut" class="abs tk" style="left:1580px;top:452px"><div id="tkOutNum" class="tkNum mono tnum">0</div><div class="cap tkLab">tokens out</div></div>
+    </div>
+
+    <!-- Bar 3: the QA matrix -->
+    <div id="mx" class="layer">
+      <div id="mxPanel" class="panel">
+        <div id="mxHead" class="abs"><span class="mxTitle">QA matrix</span><span id="mxCount" class="mono tnum"></span></div>
+        <div id="pills" class="abs">
+          <span class="pill" id="pAll">All <span class="n">30</span></span>
+          <span class="pill">Functional <span class="n">10</span></span>
+          <span class="pill">Boundary <span class="n">8</span></span>
+          <span class="pill">Negative <span class="n">6</span></span>
+          <span class="pill" id="pSec"><span id="slotSec" class="slot"></span>Security <span class="n">6</span></span>
+        </div>
+        <div id="thead" class="abs cap"><span style="left:32px">ID</span><span style="left:236px">Category</span><span style="left:400px">Priority</span><span style="left:500px">Title</span><span style="left:1360px">Feature</span></div>
+        <div id="rows" class="abs"></div>
+      </div>
+    </div>
+
+    <!-- Bars 4-5: the Playwright code studio -->
+    <div id="code" class="layer">
+      <div id="codePanel" class="panel">
+        <div id="chips" class="abs"></div>
+        <div id="codeMeta" class="abs mono">404 lines · 30 test() blocks · 6 page objects</div>
+        <div id="covWrap" class="abs"><span class="cap">Coverage</span><span id="covNum" class="tnum"></span><span class="covTrack"><i id="covBar" style="display:block"></i></span></div>
+        <div id="copyBtn" class="btn abs"><svg class="ico" width="20" height="20" viewBox="0 0 24 24"><rect x="8" y="8" width="14" height="14" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>Copy</div>
+        <div id="dlBtn" class="btn abs"><svg class="ico" width="20" height="20" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Download</div>
+        <div id="codeArea" class="abs"><div id="codeLines"></div></div>
+        <div id="toast" class="abs"><svg class="ico" width="22" height="22" viewBox="0 0 24 24" style="color:var(--emerald)"><path d="M20 6 9 17l-5-5"/></svg>Copied<span class="m">invoice-tracker.spec.ts</span></div>
+      </div>
+      <div id="codeFrame" class="abs"></div>
+    </div>
+
+    <!-- Bars 6-7: Sentry agent trace and the ROI payoff -->
+    <div id="tele" class="layer">
+      <div id="wfPanel" class="panel">
+        <div id="wfHead" class="abs"><span class="t">Agent trace</span><span class="cap">Sentry · gen_ai.invoke_agent</span></div>
+        <div id="wfTotal" class="abs mono">3m 41s</div>
+        <div id="wfBody" class="abs" style="left:0;top:0;width:1020px;height:620px"></div>
+        <i id="barStart" class="anchor" style="left:48px;top:169px"></i>
+        <div id="wfAxis" class="abs mono"></div>
+        <div id="wfCap" class="abs mono">220.9 s end-to-end · gemma2:9b · 16 GB MacBook Air M4</div>
+      </div>
+      <div id="roiCard" class="panel">
+        <div class="roiHead"><span class="t">Agency ROI</span><span class="cap">Estimate</span></div>
+        <div id="roi0" class="roiRow" style="top:92px">
+          <svg class="ico ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <div class="v"><b class="tnum">5.6 hrs</b><i>saved</i></div><div class="sub">manual authoring estimate</div>
+        </div>
+        <div id="roi1" class="roiRow" style="top:236px">
+          <svg class="ico ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15 9.2c-.5-.9-1.6-1.4-3-1.4-1.7 0-3 .9-3 2.1 0 2.8 6 1.5 6 4.3 0 1.3-1.3 2.1-3 2.1-1.4 0-2.6-.6-3.1-1.5"/><path d="M12 6v1.8M12 16.2V18"/></svg>
+          <div class="v"><b class="tnum">$476.00</b><i>billable value</i></div><div class="sub">5.6 h × $85/hr</div>
+        </div>
+        <div id="roi2" class="roiRow" style="top:380px">
+          <svg class="ico ic" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+          <div class="v"><b class="lbl">Cloud cost avoided</b></div><div class="sub">4,511 in · 2,404 out tokens</div>
+        </div>
+        <div id="roi3" class="roiRow" style="top:524px">
+          <svg class="ico ic" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          <div class="v"><b id="zeroVal" class="tnum">$0.00</b><i id="zeroLab">local cost</i></div><div id="zeroSub" class="sub">API spend only · excl. electricity &amp; hardware</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bar 8: end card (screen space, its own zoom) -->
+  <div id="end" class="layer">
+    <div id="ecLock" class="abs"><span id="slotLogo" class="slot"></span><span id="ecWord">SpecShield QA</span></div>
+    <div id="ecTag" class="abs">Local-first spec-to-test studio · NDA safe · <span id="ecKey">$0.00</span> inference</div>
+    <div id="ecUrl" class="abs mono">github.com/AaronStark1/specshield-qa</div>
+  </div>
+
+  <!-- the ◈: one vector object, drawn in screen space from measured anchors -->
+  <svg id="hero" width="1920" height="1080" viewBox="0 0 1920 1080">
+    <defs>
+      <filter id="heroMb" filterUnits="userSpaceOnUse" x="-400" y="-400" width="2720" height="1880" color-interpolation-filters="sRGB"><feGaussianBlur id="heroMbB" stdDeviation="0 0" /></filter>
+      <filter id="heroGlowF" filterUnits="userSpaceOnUse" x="-400" y="-400" width="2720" height="1880" color-interpolation-filters="sRGB"><feGaussianBlur id="heroGlowB" stdDeviation="6" /></filter>
+    </defs>
+    <!-- heroWrap is turned into the direction of travel so its blur runs along the motion only; heroTurn turns the shape back -->
+    <g id="heroWrap">
+      <g id="heroTurn">
+        <g id="heroGlow" filter="url(#heroGlowF)">
+          <path id="heroGlowOutline" fill="none" stroke="#10b981" stroke-linecap="round" stroke-linejoin="round" />
+          <path id="heroGlowInner" fill="#10b981" />
+        </g>
+        <path id="heroOutline" fill="none" stroke="#10b981" stroke-linecap="round" stroke-linejoin="round" />
+        <path id="heroInner" fill="#10b981" />
+      </g>
+    </g>
+  </svg>
+
+  <svg id="cursor" width="1920" height="1080" viewBox="0 0 1920 1080">
+    <g id="curG"><path d="M0 0 L0 25.5 L6.4 19.4 L10.6 28.6 L14.6 26.9 L10.4 17.9 L19 17.9 Z" fill="#f8fafc" stroke="#0b1220" stroke-width="1.6" stroke-linejoin="round" /></g>
+  </svg>
+
+  <div id="cut"></div>
+
+  <svg width="0" height="0" style="position:absolute">
+    <filter id="mbWorld" filterUnits="userSpaceOnUse" x="-6000" y="-6000" width="14000" height="14000" color-interpolation-filters="sRGB"><feGaussianBlur id="mbWorldB" stdDeviation="0 0" /></filter>
+    <filter id="mbHook" filterUnits="userSpaceOnUse" x="-3000" y="-3000" width="8000" height="8000" color-interpolation-filters="sRGB"><feGaussianBlur id="mbHookB" stdDeviation="0 0" /></filter>
+  </svg>
+</div>
+<div id="scrub"><input id="scrubIn" type="range" min="0" max="15" step="0.0166667" value="0" /><span id="scrubT">0.00 s</span></div>
+
+<script>
+"use strict";
+(() => {
+  // ───────────────────────── real data ─────────────────────────
+  const PRD = `# Freelancer Invoice Tracker — Product Requirements (v1.0)
+
+## Background
+Solo freelancers lose track of which invoices are unpaid. The Invoice Tracker lets a freelancer
+create clients, issue invoices, record payments and get overdue reminders.
+
+## User Roles
+- **Freelancer** — owns the account, creates clients and invoices, records payments.
+- **Client** — external; receives a public invoice link and can mark an invoice as "Payment Sent".
+- **Accountant** — read-only access to all invoices and a CSV export.
+
+## Functional Requirements
+
+### 3.1 Authentication (FR-AUTH)
+- FR-AUTH-01: Freelancers sign up with email and password. Passwords must be 8–64 characters with at least one number.
+- FR-AUTH-02: After 5 failed logins within 10 minutes the account is locked for 15 minutes.
+- FR-AUTH-03: Sessions expire after 60 minutes of inactivity.
+
+### 3.2 Clients (FR-CLI)
+- FR-CLI-01: A client has a name (required, 2–80 characters), email (required, valid format) and currency (USD, EUR, GBP or INR).
+- FR-CLI-02: Two clients cannot share the same email within one freelancer account; the error is "A client with this email already exists".
+- FR-CLI-03: A client with unpaid invoices cannot be deleted; the delete button is disabled with a tooltip.
+
+### 3.3 Invoices (FR-INV)
+- FR-INV-01: An invoice has a client, issue date, due date, 1–50 line items and an optional note (max 500 characters).`;
+
+  const AGENTS = ["Requirement Parser", "QA Matrix Architect", "Playwright Codegen"];
+  // Live Gemma run, 2026-10-14 13:12: ms from the first step's start (data/runs.json telemetry).
+  const STEPS = [
+    { start: 0, end: 80091, label: "1m 20s" },
+    { start: 80091, end: 161945, label: "1m 22s" },
+    { start: 161947, end: 220946, label: "59.0s" },
+  ];
+  const TOTAL_MS = 220946;
+  const TOKENS_IN = 4511, TOKENS_OUT = 2404;
+  const AXIS = ["0s", "55.2s", "1m 50s", "2m 46s", "3m 41s"];
+
+  // 30-case run of the same sample PRD: id, category class, category, priority, title, feature.
+  const ROWS = [
+    ["FIT-FUNC-001", "func", "Functional", "P0", "Freelancer signs up with valid email and password", "FR-AUTH"],
+    ["FIT-BND-001", "bnd", "Boundary", "P1", "Password boundary 7/8 and 64/65 characters", "FR-AUTH"],
+    ["FIT-SEC-001", "sec", "Security", "P0", "6th failed login inside 10 minutes locks account for 15 minutes", "FR-AUTH"],
+    ["FIT-SEC-002", "sec", "Security", "P1", "Session invalidation after 60 minutes of inactivity", "FR-AUTH"],
+    ["FIT-FUNC-002", "func", "Functional", "P0", "Freelancer creates client with name, email and USD currency", "FR-CLI"],
+    ["FIT-BND-002", "bnd", "Boundary", "P1", "Client name boundary 1/2 and 80/81 characters", "FR-CLI"],
+    ["FIT-NEG-001", "neg", "Negative", "P0", "Duplicate client email within account rejected", "FR-CLI"],
+    ["FIT-NEG-002", "neg", "Negative", "P1", "Deleting client with unpaid invoices is disabled", "FR-CLI"],
+  ];
+  const SEC_MORE = [
+    ["FIT-SEC-003", "sec", "Security", "P0", "Accountant write endpoint returns 403 Forbidden", "NFR"],
+    ["FIT-SEC-004", "sec", "Security", "P0", "Guessed or 31-char public link token rejected", "NFR"],
+    ["FIT-SEC-005", "sec", "Security", "P0", "Script tag in note is rendered as plain text", "NFR"],
+    ["FIT-SEC-006", "sec", "Security", "P0", "Public invoice link isolates single invoice and reveals no other client data", "NFR"],
+  ];
+  const GWT = [
+    ["Given", "#10b981", "an account with 5 consecutive failed login attempts in 10 minutes"],
+    ["When", "#f59e0b", "a 6th failed login attempt is submitted"],
+    ["Then", "#06b6d4", "the account is locked for 15 minutes and further login attempts return 423 Locked"],
+  ];
+  // invoice-tracker.spec.ts from the same run: lines 1-2 and the FIT-SEC-001 test, lines 45-54.
+  const CODE = [
+    [1, 'import { test, expect } from "@playwright/test";'],
+    [2, 'import { LoginPage } from "./pages/login.page.ts";'],
+    [null, "  ⋯"],
+    [45, '  test("6th failed login inside 10 minutes locks account for 15 minutes", async ({ page }) => {'],
+    [46, "    // covers FIT-SEC-001"],
+    [47, "    const pom = new LoginPage(page);"],
+    [48, "    await pom.goto();"],
+    [49, "    // Given: an account with 5 consecutive failed login attempts in 10 minutes"],
+    [50, "    // When: a 6th failed login attempt is submitted"],
+    [51, '    await expect(page.getByTestId("status-fit-sec-001")).toBeVisible();'],
+    [52, "    // Then: the account is locked for 15 minutes and further login attempts return 423 Locked"],
+    [53, '    await expect(page.getByTestId("result-fit-sec-001")).toContainText("Account locked for 15 minutes on 6th fai");'],
+    [54, "  });"],
+  ];
+  const HERO_LINE = 4; // index of "// covers FIT-SEC-001" in CODE
+  const CHIPS = [["invoice-tracker.spec.ts", 404, true], ["login.page.ts", 33], ["invoice-editor.page.ts", 35], ["payments.page.ts", 27]];
+
+  // ───────────────────────── timeline (seconds; one beat = 0.5 s at 120 BPM) ─────────────────────────
+  const T = {
+    fall: 0.82, impact: 1.0, dockStart: 1.3, docked: 1.84,
+    click: 2.0, onRail: 2.3,
+    rail: [[2.3, "start"], [2.48, "p0"], [2.62, "p0"], [2.92, "p1"], [3.04, "p1"], [3.24, "p2"], [3.36, "p2"], [3.56, "end"]],
+    lit: [2.48, 2.92, 3.24], done: [2.62, 3.04, 3.36],
+    drop: 3.56, landed: 3.95, rows: 4.0, filter: 4.5, expand: 5.0, count: 5.5,
+    lift: 6.0, slashed: 6.5, chips: [6.5, 6.75, 7.0], cov: 7.5, copy: 8.0,
+    trace: 9.0, traced: 9.35, bars: [9.18, 9.5, 9.64], pull: 10.0, payoff: 10.5,
+    rise: 12.0, risen: 12.38, logo: 12.72, tag: 13.0, url: 13.12, key: 13.5, cut: 14.0,
+  };
+
+  // ───────────────────────── pure easing ─────────────────────────
+  const clamp = (x, a = 0, b = 1) => (x < a ? a : x > b ? b : x);
+  const lerp = (a, b, u) => a + (b - a) * u;
+  const prog = (t, a, b) => clamp((t - a) / (b - a));
+  const E10 = 1 - Math.pow(2, -10);
+  const expoOut = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : (1 - Math.pow(2, -10 * u)) / E10);
+  const expoIn = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : (Math.pow(2, 10 * u) - 1) / 1023);
+  const expoInOut = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : u < 0.5 ? expoIn(2 * u) / 2 : 0.5 + expoOut(2 * u - 1) / 2);
+  const cubicOut = (u) => 1 - Math.pow(1 - clamp(u), 3);
+  const cubicInOut = (u) => ((u = clamp(u)) < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
+  const sineInOut = (u) => -(Math.cos(Math.PI * clamp(u)) - 1) / 2;
+  /** Step response of a damped spring (damping ratio 0.7, ~4.6% overshoot) that settles in `dur` s. */
+  function spring(t, t0, dur, zeta = 0.7) {
+    const tau = t - t0;
+    if (tau <= 0) return 0;
+    const wn = 4 / (zeta * dur), wd = wn * Math.sqrt(1 - zeta * zeta);
+    return 1 - Math.exp(-zeta * wn * tau) * (Math.cos(wd * tau) + ((zeta * wn) / wd) * Math.sin(wd * tau));
+  }
+  /** A press: 0 → 1 → 0 over `dur` s. */
+  const bump = (t, t0, dur) => (t <= t0 || t >= t0 + dur ? 0 : Math.sin(Math.PI * ((t - t0) / dur)));
+  const deriv = (f, t, h = 1 / 480) => (f(t + h) - f(t - h)) / (2 * h);
+
+  /** Monotone cubic (Fritsch–Carlson) through [time, value] keys: smooth, never overshoots. */
+  function monotone(keys) {
+    const n = keys.length, xs = keys.map((k) => k[0]), ys = keys.map((k) => k[1]);
+    const d = [], m = new Array(n);
+    for (let i = 0; i < n - 1; i++) d.push((ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]));
+    m[0] = d[0];
+    m[n - 1] = d[n - 2];
+    for (let i = 1; i < n - 1; i++) m[i] = d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2;
+    for (let i = 0; i < n - 1; i++) {
+      if (d[i] === 0) { m[i] = 0; m[i + 1] = 0; continue; }
+      const a = m[i] / d[i], b = m[i + 1] / d[i], s = a * a + b * b;
+      if (s > 9) { const k = 3 / Math.sqrt(s); m[i] = k * a * d[i]; m[i + 1] = k * b * d[i]; }
+    }
+    return (x) => {
+      if (x <= xs[0]) return ys[0];
+      if (x >= xs[n - 1]) return ys[n - 1];
+      let i = 0;
+      while (x > xs[i + 1]) i++;
+      const h = xs[i + 1] - xs[i], u = (x - xs[i]) / h, u2 = u * u, u3 = u2 * u;
+      return (2 * u3 - 3 * u2 + 1) * ys[i] + (u3 - 2 * u2 + u) * h * m[i] + (-2 * u3 + 3 * u2) * ys[i + 1] + (u3 - u2) * h * m[i + 1];
+    };
+  }
+
+  // ───────────────────────── camera ─────────────────────────
+  // Zoom per the storyboard: 1.00 → 1.04 → 1.08 → 1.12 → 1.16, pull out to 1.08, settle 1.04, end card 1.00.
+  const camZ = monotone([[0, 1.0], [2, 1.04], [4, 1.08], [6, 1.12], [9, 1.155], [10, 1.165], [10.55, 1.085], [12, 1.04], [13, 1.0], [14, 1.006], [15, 1.008]]);
+  const camX = monotone([[0, 960], [8.95, 960], [9.45, 722], [10.0, 716], [10.6, 958], [15, 962]]);
+  const camY = monotone([[0, 540], [3.62, 540], [4.42, 1168], [6.0, 1176], [9.0, 1166], [12.0, 1160], [15, 1158]]);
+  const cam = (t) => ({ z: camZ(t), x: camX(t), y: camY(t) });
+  const toWorld = (c, x, y) => [(x - 960) / c.z + c.x, (y - 540) / c.z + c.y];
+  const rectToWorld = (c, r) => {
+    const [x, y] = toWorld(c, r.x, r.y);
+    return { x, y, w: r.w / c.z, h: r.h / c.z };
+  };
+
+  // ───────────────────────── DOM ─────────────────────────
+  const E = {};
+  const nb = [], nr = [], nf = [], ports = [], rowEls = [], gwtEls = [], chipEls = [], codeEls = [], barEls = [], labEls = [];
+  const css = (el, prop, v) => { el.style[prop] = v; };
+  const vis = (el, on) => { el.style.display = on ? "block" : "none"; };
+  const f2 = (v) => (Math.abs(v) < 1e-4 ? "0" : v.toFixed(2));
+  const insetPct = (top, right, bottom, left) => `inset(${f2(top)}% ${f2(right)}% ${f2(bottom)}% ${f2(left)}%)`;
+  const insetPx = (top, right, bottom, left, r = 0) => `inset(${f2(top)}px ${f2(right)}px ${f2(bottom)}px ${f2(left)}px${r ? ` round ${r}px` : ""})`;
+  const fmt = (n) => Math.round(n).toLocaleString("en-US");
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  function highlight(src) {
+    const re = /(\/\/.*$)|("(?:[^"\\]|\\.)*")|\b(import|from|test|expect|const|await|async|new)\b|([{}()[\];,.=>])|([^\s"{}()[\];,.=>/]+|\s+|.)/g;
+    let out = "", m;
+    while ((m = re.exec(src))) {
+      if (m[1]) out += `<span class="c">${esc(m[1])}</span>`;
+      else if (m[2]) out += `<span class="s">${esc(m[2])}</span>`;
+      else if (m[3]) out += `<span class="k">${m[3]}</span>`;
+      else if (m[4]) out += `<span class="p">${esc(m[4])}</span>`;
+      else out += esc(m[5]);
+    }
+    return out;
+  }
+
+  function build() {
+    document.querySelectorAll("[id]").forEach((el) => (E[el.id] = el));
+
+    E.edText.innerHTML = PRD.split("\n")
+      .map((l) => {
+        if (!l) return "<div>&nbsp;</div>";
+        if (l.startsWith("#")) return `<div class="h">${esc(l)}</div>`;
+        if (l.startsWith("- ")) return `<div><span class="b">- </span>${esc(l.slice(2))}</div>`;
+        return `<div>${esc(l)}</div>`;
+      })
+      .join("");
+
+    for (let i = 0; i < 3; i++) {
+      nb.push(E["nb" + i]);
+      nr.push(E["nr" + i]);
+      nf.push(E["nf" + i]);
+      E["nf" + i].innerHTML =
+        `<div class="nStep">0${i + 1}</div><div class="nName">${AGENTS[i]}</div>` +
+        `<div class="port" id="port${i}"><svg class="spin" viewBox="-24 -24 48 48"><circle r="19"/></svg>` +
+        `<svg class="chk" viewBox="-24 -24 48 48"><path d="M-8.5 0.5 L-2.8 6.2 L9 -6"/></svg></div>` +
+        `<div class="nTime mono">${STEPS[i].label}</div>`;
+      ports.push(E["nf" + i].querySelector(".port"));
+    }
+
+    const rowHTML = (r, id, extra) =>
+      `<div class="row${extra ? " x" : ""}" id="${id}"><div class="rowIn">${extra ? '<i class="rowBg"></i>' : ""}` +
+      `<span class="c-id mono">${r[0]}</span><span class="badge t-${r[1]} c-cat">${r[2]}</span>` +
+      `<span class="badge ${r[3].toLowerCase()} c-pri">${r[3]}</span><span class="c-title">${esc(r[4])}</span>` +
+      `<span class="c-feat mono">${r[5]}</span>` +
+      `<svg class="ico c-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>` +
+      (extra
+        ? GWT.map((g, k) => `<div class="gwt" style="top:${72 + k * 38}px"><b style="color:${g[1]}">${g[0].toUpperCase()}</b><span>${esc(g[2])}</span></div>`).join("")
+        : "") +
+      `</div></div>`;
+    E.rows.innerHTML = ROWS.map((r, i) => rowHTML(r, "r" + i, i === 2)).join("") + SEC_MORE.map((r, j) => rowHTML(r, "s" + j)).join("");
+    for (let i = 0; i < ROWS.length; i++) rowEls.push(E.rows.querySelector("#r" + i));
+    for (let j = 0; j < SEC_MORE.length; j++) rowEls.push(E.rows.querySelector("#s" + j));
+    gwtEls.push(...rowEls[2].querySelectorAll(".gwt"));
+    E.r2id = rowEls[2].querySelector(".c-id");
+    E.r2in = rowEls[2].querySelector(".rowIn");
+    E.r2chev = rowEls[2].querySelector(".c-chev");
+
+    E.chips.innerHTML = CHIPS.map(
+      (c, i) =>
+        `<span class="fchip${c[2] ? " on" : ""}" id="chip${i}">` +
+        (c[2]
+          ? '<svg class="ico" width="19" height="19" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>'
+          : '<span class="br">{}</span>') +
+        `${c[0]}<span class="n">${c[1]}</span></span>`
+    ).join("");
+    for (let i = 0; i < CHIPS.length; i++) chipEls.push(E.chips.querySelector("#chip" + i));
+
+    E.codeLines.innerHTML =
+      '<div id="lineHl"></div>' +
+      CODE.map(([n, src], i) => {
+        let body;
+        if (i === HERO_LINE) body = `    <span id="slotSlash">//</span><span id="heroRest" class="c"> covers FIT-SEC-001</span>`;
+        else if (n === null) body = `<span class="c">${esc(src)}</span>`;
+        else body = highlight(src);
+        return `<div class="cl"${i === HERO_LINE ? ' id="heroLine"' : ""}><span class="g">${n === null ? "" : n}</span><span class="x">${body}</span></div>`;
+      }).join("");
+    codeEls.push(...E.codeLines.querySelectorAll(".cl"));
+    E.slotSlash = document.getElementById("slotSlash");
+    E.heroRest = document.getElementById("heroRest");
+    E.heroLine = document.getElementById("heroLine");
+    E.lineHl = document.getElementById("lineHl");
+    E.lineHl.style.top = HERO_LINE * 42 + "px";
+
+    let wf = "";
+    [0.25, 0.5, 0.75, 1].forEach((f) => (wf += `<i class="wfGrid abs" style="left:${48 + 924 * f}px"></i>`));
+    STEPS.forEach((s, i) => {
+      const y = 110 + i * 140;
+      wf +=
+        `<div class="wfLab abs" id="wl${i}" style="top:${y}px">${AGENTS[i]}<span class="cap" style="font-size:14px;margin-left:16px">invoke_agent</span></div>` +
+        `<div class="wfDur abs mono" id="wd${i}" style="top:${y + 2}px">${s.label}</div>` +
+        `<div class="wfTrack abs" id="wt${i}" style="top:${y + 46}px"></div>` +
+        `<div class="wfBar abs" id="wb${i}" style="top:${y + 46}px;left:${48 + (924 * s.start) / TOTAL_MS}px;width:${(924 * (s.end - s.start)) / TOTAL_MS}px"></div>`;
+    });
+    E.wfBody.innerHTML = wf;
+    for (let i = 0; i < 3; i++) {
+      barEls.push(E.wfBody.querySelector("#wb" + i));
+      labEls.push([E.wfBody.querySelector("#wl" + i), E.wfBody.querySelector("#wd" + i), E.wfBody.querySelector("#wt" + i)]);
+    }
+    E.wfGrids = [...E.wfBody.querySelectorAll(".wfGrid")];
+    E.wfAxis.innerHTML = AXIS.map((a, i) => `<span style="left:${(924 * i) / 4}px;transform:translateX(${i === 0 ? 0 : i === 4 ? -100 : -50}%)">${a}</span>`).join("");
+    E.pillEls = [...E.pills.querySelectorAll(".pill")];
+    E.roiRows = [E.roi0, E.roi1, E.roi2, E.roi3];
+    // static sizes, measured while their layers are laid out (layers start hidden)
+    E.app.style.display = E.tele.style.display = "block";
+    E.edTextH = E.edText.offsetHeight;
+    E.zeroValW = E.zeroVal.offsetWidth;
+    E.app.style.display = E.tele.style.display = "none";
+  }
+
+  // ───────────────────────── scenes (each sets every property it animates) ─────────────────────────
+  function sceneHook(t) {
+    const on = t < 1.95; // stays laid out until the ◈ docks: its gap is the flight's start
+    vis(E.hook, on);
+    if (!on) return;
+    const sc = lerp(0.96, 1, expoOut(prog(t, 0, 0.8)));
+    E.hookLine.style.transform = `translate(-50%,-50%) scale(${sc.toFixed(5)})`;
+    E.hookLine.querySelectorAll(".hw").forEach((w, i) => {
+      const t0 = i * 0.055;
+      w.style.opacity = clamp((t - t0) / 0.24).toFixed(3);
+      w.style.transform = `translateY(${((1 - expoOut(prog(t, t0, t0 + 0.5))) * 0.3).toFixed(4)}em)`;
+    });
+    // beat 2: the key phrase takes the accent, a caret lands
+    const kw = expoOut(prog(t, 0.5, 0.8));
+    E.hookKey.style.clipPath = insetPct(-30, (1 - kw) * 100, -30, 0);
+    E.hookCaret.style.transform = `scaleY(${clamp(spring(t, 0.5, 0.3), 0, 1.1).toFixed(4)})`;
+    // beat 3: the ◈ lands in the gap and the halves split and mask away from the crack outwards
+    const split = (tt) => 250 * expoOut(prog(tt, T.impact, T.impact + 0.45));
+    const dx = split(t);
+    const m = 100 * expoOut(prog(t, T.impact + 0.02, T.impact + 0.4));
+    E.hookL.style.transform = `translateX(${f2(-dx)}px)`;
+    E.hookR.style.transform = `translateX(${f2(dx)}px)`;
+    E.hookL.style.clipPath = insetPct(-40, m, -40, -10);
+    E.hookR.style.clipPath = insetPct(-40, -30, -40, m * 1.3); // 130% also takes the caret past the box
+    const sigma = Math.min(12, Math.abs(deriv(split, t)) * 0.0028);
+    E.mbHookB.setAttribute("stdDeviation", `${f2(sigma)} 0`);
+    E.hookL.style.filter = E.hookR.style.filter = sigma > 0.35 ? "url(#mbHook)" : "none";
+  }
+
+  function sceneApp(t) {
+    const on = t >= 0.98 && t < 2.32;
+    vis(E.app, on);
+    if (!on) return;
+    // header: slot placeholder + wordmark are there when the iris opens; it folds away after the ◈ leaves
+    const hc = expoIn(prog(t, 2.04, 2.26));
+    E.hdr.style.clipPath = insetPct(0, 0, hc * 100, 0);
+    const chips = expoOut(prog(t, 1.3, 1.62));
+    E.hdrChips.style.clipPath = insetPct(-20, 0, -20, (1 - chips) * 100);
+    // the PRD pastes in line by line and scrolls
+    const visH = 520, lineH = 32;
+    const front = Math.ceil((cubicOut(prog(t, 1.02, 2.0)) * (visH + 300)) / lineH) * lineH + 20;
+    E.edText.style.clipPath = insetPx(0, 0, Math.max(0, E.edTextH - front), 0);
+    E.edText.style.transform = `translateY(${f2(-Math.max(0, front - visH + 24))}px)`;
+    const pasted = expoOut(prog(t, 1.02, 1.5));
+    E.edMeta.textContent = `${fmt(3192 * pasted)} chars · ${fmt(46 * pasted)} lines · ≈ ${fmt(798 * pasted)} tokens (est.)`;
+    // the click on the beat, then the panel folds into the pipeline rail
+    E.runBtn.style.transform = `scale(${(1 - 0.045 * bump(t, T.click, 0.18)).toFixed(4)})`;
+    E.runBtn.style.background = t >= T.click ? "#047857" : "#059669";
+    const fold = expoIn(prog(t, 2.04, 2.28));
+    E.editor.style.clipPath = insetPx(364 * fold, 0, 364 * fold, 0, 18 * (1 - fold));
+  }
+
+  function railPos(t, A) {
+    const R = T.rail;
+    for (let i = 0; i < R.length - 1; i++) {
+      const [t0, a] = R[i], [t1, b] = R[i + 1];
+      if (t <= t1) return lerp(A[a].cx, A[b].cx, cubicInOut(prog(t, t0, t1)));
+    }
+    return A.end.cx;
+  }
+
+  function scenePipe(t) {
+    const on = t >= 1.99 && t < 4.6;
+    vis(E.pipe, on);
+    if (!on) return;
+    const born = t >= 2.27;
+    E.rail.style.display = born ? "block" : "none";
+    const re = expoOut(prog(t, 2.27, 2.52));
+    [0, 1, 2].forEach((i) => {
+      const s = clamp(spring(t, 2.3 + 0.06 * i, 0.3), 0, 1.05);
+      E["chev" + i].style.transform = `scale(${s.toFixed(4)})`;
+    });
+    const x0 = lerp(260, 130, re), x1 = lerp(1660, 1790, re);
+    E.rail.style.left = f2(x0) + "px";
+    E.rail.style.width = f2(x1 - x0) + "px";
+    const cap = expoOut(prog(t, 2.3, 2.62));
+    E.pCap.style.clipPath = insetPct(-30, 50 - cap * 50, -30, 50 - cap * 50);
+    for (let i = 0; i < 3; i++) {
+      const s = spring(t, 2.25 + i * 0.05, 0.34);
+      nb[i].style.transform = `scaleY(${Math.max(0, s).toFixed(4)})`;
+      const u = clamp(s);
+      nf[i].style.clipPath = insetPct(50 - u * 50, -5, 50 - u * 50, -5);
+      const lit = expoOut(prog(t, T.lit[i], T.lit[i] + 0.1));
+      const done = expoOut(prog(t, T.done[i], T.done[i] + 0.25));
+      nr[i].style.transform = nb[i].style.transform;
+      nr[i].style.opacity = (lit * (0.62 - 0.3 * done)).toFixed(3);
+      ports[i].style.borderColor = lit > 0 ? `rgba(16,185,129,${(0.3 + 0.45 * lit - 0.25 * done).toFixed(3)})` : "";
+      const spin = ports[i].children[0], chk = ports[i].children[1];
+      const sv = expoOut(prog(t, T.lit[i], T.lit[i] + 0.12)) * (1 - expoOut(prog(t, T.done[i] - 0.03, T.done[i] + 0.06)));
+      spin.style.transform = `scale(${sv.toFixed(4)}) rotate(${((t - T.lit[i]) * 760).toFixed(1)}deg)`;
+      const ck = expoOut(prog(t, T.done[i], T.done[i] + 0.2));
+      chk.style.transform = `scale(${(0.7 + 0.3 * ck).toFixed(4)})`;
+      chk.firstChild.style.strokeDashoffset = (30 * (1 - ck)).toFixed(2);
+      chk.style.opacity = t >= T.done[i] ? 1 : 0;
+      const tm = expoOut(prog(t, T.done[i] + 0.04, T.done[i] + 0.3));
+      nf[i].lastChild.style.clipPath = insetPct(-20, 50 - tm * 50, -20, 50 - tm * 50);
+    }
+    const tin = expoOut(prog(t, 2.28, 2.5));
+    E.tkIn.style.clipPath = insetPct(-20, 50 - tin * 50, -20, 50 - tin * 50);
+    E.tkInNum.textContent = fmt(TOKENS_IN * cubicOut(prog(t, 2.3, 2.66)));
+    const tout = expoOut(prog(t, 3.44, 3.64));
+    E.tkOut.style.clipPath = insetPct(-20, 50 - tout * 50, -20, 50 - tout * 50);
+    E.tkOutNum.textContent = fmt(TOKENS_OUT * cubicOut(prog(t, 3.48, 3.84)));
+  }
+
+  /** Row slots for the matrix at time t: heights, content offsets and clips, laid out top-down. */
+  function matrixRows(t) {
+    const out = [];
+    let y = 0;
+    const filterAt = T.filter + 0.03;
+    let k = 0;
+    for (let i = 0; i < rowEls.length; i++) {
+      const isMain = i < ROWS.length;
+      const isSec = isMain ? ROWS[i][1] === "sec" : true;
+      const t0 = isMain ? T.rows + 0.04 * i : 4.76 + 0.06 * (i - ROWS.length);
+      const s = spring(t, t0, isMain ? 0.36 : 0.4);
+      const u = clamp(s);
+      let h = 68 * u, dy = -68 * (1 - u);
+      if (isMain && !isSec) {
+        const c = filterAt + 0.025 * k++;
+        const f = 1 - expoOut(prog(t, c, c + 0.24));
+        h = 68 * u * f;
+        dy = -68 * (1 - u) - (68 - 68 * f) / 2;
+      }
+      if (i === 2) h += 150 * clamp(spring(t, T.expand, 0.45), 0, 1.04);
+      out.push({ y, h, dy, on: t >= t0 && h > 0.2 });
+      y += h;
+    }
+    return { rows: out, height: y };
+  }
+
+  function sceneMatrix(t) {
+    const on = t >= 3.45 && t < 6.52;
+    vis(E.mx, on);
+    if (!on) return;
+    const L = matrixRows(t);
+    // the panel grows with its rows
+    const head = expoOut(prog(t, 3.46, 3.8));
+    const H = Math.max(96 * head, L.height > 0 ? 136 + L.height + 22 : 96 * head);
+    E.mxPanel.style.height = f2(H) + "px";
+    E.mxPanel.style.visibility = H > 1 ? "visible" : "hidden";
+    E.pillEls.forEach((p, i) => {
+      const s = spring(t, 3.5 + i * 0.045, 0.4);
+      p.style.transform = `scale(${Math.max(0, s).toFixed(4)})`;
+    });
+    // Security becomes the active filter on the click
+    const act = expoOut(prog(t, T.filter, T.filter + 0.14));
+    E.pAll.style.background = `rgba(255,255,255,${(0.06 * (1 - act)).toFixed(3)})`;
+    E.pAll.style.borderColor = `rgba(255,255,255,${(0.12 * (1 - act)).toFixed(3)})`;
+    E.pSec.style.background = `rgba(6,182,212,${(0.12 * act).toFixed(3)})`;
+    E.pSec.style.borderColor = `rgba(6,182,212,${(0.45 * act).toFixed(3)})`;
+    E.pSec.style.color = act > 0.5 ? "#a5f3fc" : "#cbd5e1";
+    E.pSec.style.transform = `scale(${(Math.max(0, spring(t, 3.68, 0.4)) * (1 - 0.05 * bump(t, T.filter, 0.18))).toFixed(4)})`;
+    // counter on beat 12
+    const cu = expoOut(prog(t, T.count, T.count + 0.3));
+    E.mxCount.style.clipPath = insetPct(-30, (1 - cu) * 100, -30, 0);
+    E.mxCount.textContent = `${fmt(30 * cubicOut(prog(t, T.count, T.count + 0.32)))} test cases · 4 categories`;
+    // rows
+    L.rows.forEach((r, i) => {
+      const el = rowEls[i];
+      el.style.display = r.on ? "block" : "none";
+      el.style.top = f2(r.y) + "px";
+      el.style.height = f2(r.h) + "px";
+      el.firstChild.style.transform = `translateY(${f2(r.dy)}px)`;
+    });
+    gwtEls.forEach((g, k) => {
+      const v = expoOut(prog(t, T.expand + 0.08 + 0.08 * k, T.expand + 0.42 + 0.08 * k));
+      g.style.clipPath = insetPct(-30, (1 - v) * 100, -30, 0);
+      g.style.transform = `translateY(${f2(10 * (1 - v))}px)`;
+    });
+    const opened = expoOut(prog(t, T.expand, T.expand + 0.2));
+    rowEls[2].querySelector(".rowBg").style.opacity = opened.toFixed(3);
+    E.r2chev.style.transform = `rotate(${(90 * opened).toFixed(2)}deg)`;
+    // beat 13: everything but FIT-SEC-001 masks away, the frame converges onto that row, then the row empties
+    const leaving = t >= T.lift;
+    const rest = insetPct(0, 0, expoOut(prog(t, T.lift + 0.02, T.lift + 0.18)) * 100, 0);
+    E.mxHead.style.clipPath = leaving ? rest : "none";
+    E.pills.style.clipPath = leaving ? rest : "none";
+    E.thead.style.clipPath = leaving ? rest : insetPct(-20, (1 - expoOut(prog(t, 3.92, 4.2))) * 100, -20, 0);
+    rowEls.forEach((el, i) => (el.style.clipPath = i !== 2 && leaving ? rest : "none"));
+    const r2 = L.rows[2];
+    const cv = cubicInOut(prog(t, T.lift, T.lift + 0.2));
+    E.mxPanel.style.clipPath =
+      t >= T.lift ? insetPx(cv * (136 + r2.y), 0, cv * Math.max(0, H - 136 - r2.y - r2.h), 0, 18) : "none";
+    const empty = expoOut(prog(t, T.lift + 0.08, T.lift + 0.22));
+    E.r2in.style.clipPath = t >= T.lift + 0.08 ? insetPct(-5, empty * 100, -5, 0) : "none";
+    E.mxPanel.style.opacity = t >= 6.2 ? 0 : 1;
+  }
+
+  function sceneCode(t) {
+    const on = t >= 5.98 && t < 9.37;
+    vis(E.code, on);
+    if (!on) return;
+    chipEls.forEach((c, i) => {
+      const t0 = i === 0 ? 6.26 : T.chips[i - 1];
+      const u = expoOut(prog(t, t0, t0 + 0.32));
+      c.style.transform = `translateX(${f2(-28 * (1 - u))}px)`;
+      c.style.clipPath = insetPct(-20, (1 - u) * 100, -20, 0);
+    });
+    const meta = expoOut(prog(t, 6.3, 6.58));
+    E.codeMeta.style.clipPath = insetPct(-30, (1 - meta) * 100, -30, 0);
+    [E.copyBtn, E.dlBtn].forEach((b, i) => {
+      const s = Math.max(0, spring(t, 6.34 + i * 0.05, 0.36));
+      b.style.transform = `scale(${(s * (1 - (i === 0 ? 0.06 * bump(t, T.copy, 0.18) : 0))).toFixed(4)})`;
+    });
+    coverage(t);
+    codeEls.forEach((el, i) => {
+      const t0 = 6.18 + 0.022 * i;
+      const u = expoOut(prog(t, t0, t0 + 0.3));
+      el.style.clipPath = insetPct(0, 0, (1 - u) * 100, 0);
+      el.style.transform = `translateY(${f2(-10 * (1 - u))}px)`;
+    });
+    // the rest of the ◈ line writes out from the slashes once they are in place
+    const restIn = expoOut(prog(t, T.slashed - 0.02, T.slashed + 0.22));
+    const restOut = expoOut(prog(t, T.trace, T.trace + 0.14));
+    E.heroRest.style.clipPath = insetPct(-30, (1 - restIn) * 100 + restOut * 100, -30, 0);
+    // copy → toast
+    const ts = clamp(spring(t, T.copy + 0.03, 0.32), 0, 1.06);
+    const tOut = expoIn(prog(t, 8.42, 8.6));
+    E.toast.style.display = t >= T.copy + 0.03 && t < 8.6 ? "flex" : "none";
+    E.toast.style.transform = `translateY(${f2(-6 * tOut)}px) scale(${(0.6 + 0.4 * ts).toFixed(4)})`;
+    E.toast.style.opacity = (clamp(ts * 1.6) * (1 - tOut)).toFixed(3);
+    E.toast.style.clipPath = insetPct(0, (1 - clamp(ts)) * 60, 0, 0);
+    // beat 18: the ◈ line is marked
+    const hl = expoOut(prog(t, 8.5, 8.78));
+    E.lineHl.style.transform = `scaleX(${hl.toFixed(4)})`;
+  }
+
+  function coverage(t) {
+    const u = expoOut(prog(t, T.cov, T.cov + 0.3));
+    E.covWrap.style.clipPath = insetPct(-30, (1 - u) * 100, -30, 0);
+    const fill = cubicOut(prog(t, T.cov + 0.05, T.cov + 0.42));
+    E.covBar.style.transform = `scaleX(${fill.toFixed(4)})`;
+    E.covNum.textContent = `${fmt(30 * fill)}/30 covered`;
+  }
+
+  function sceneTele(t) {
+    const on = t >= 8.98 && t < 12.45;
+    vis(E.tele, on);
+    if (!on) return;
+    const head = expoOut(prog(t, 9.26, 9.52));
+    E.wfHead.style.clipPath = insetPct(-30, (1 - head) * 100, -30, 0);
+    E.wfTotal.style.clipPath = insetPct(-30, 0, -30, (1 - head) * 100);
+    barEls.forEach((b, i) => {
+      const s = Math.max(0, spring(t, T.bars[i], 0.5));
+      b.style.transform = `scaleX(${s.toFixed(4)})`;
+      b.style.transformOrigin = "0 50%";
+      const [lab, dur, track] = labEls[i];
+      const lu = expoOut(prog(t, T.bars[i] + 0.04, T.bars[i] + 0.34));
+      lab.style.clipPath = insetPct(-30, (1 - lu) * 100, -30, 0);
+      dur.style.clipPath = insetPct(-30, 0, -30, (1 - lu) * 100);
+      const tu = expoOut(prog(t, T.bars[i] - 0.06, T.bars[i] + 0.3));
+      track.style.clipPath = insetPct(0, (1 - tu) * 100, 0, 0);
+    });
+    const ax = expoOut(prog(t, 9.6, 9.9));
+    E.wfAxis.style.clipPath = insetPct(-30, (1 - ax) * 100, -30, 0);
+    E.wfGrids.forEach((g, i) => (g.style.transform = `scaleY(${expoOut(prog(t, 9.62 + 0.04 * i, 9.95 + 0.04 * i)).toFixed(4)})`));
+    const capU = expoOut(prog(t, 11.5, 11.8));
+    E.wfCap.style.clipPath = insetPct(-30, (1 - capU) * 100, -30, 0);
+    // beat 21: the ROI card unrolls beside the trace
+    const card = expoOut(prog(t, T.pull, T.pull + 0.34));
+    E.roiCard.style.clipPath = insetPct(0, 0, (1 - card) * 100, 0);
+    E.roiCard.style.visibility = card > 0 ? "visible" : "hidden";
+    E.roiRows.forEach((r, i) => {
+      const u = expoOut(prog(t, T.pull + 0.1 + 0.07 * i, T.pull + 0.4 + 0.07 * i));
+      r.style.clipPath = insetPct(-10, (1 - u) * 100, -10, 0);
+      r.style.transform = `translateX(${f2(14 * (1 - u))}px)`;
+    });
+    // beat 22: $0.00, the payoff
+    const p = T.payoff;
+    const up = expoOut(prog(t, p, p + 0.12));
+    const down = sineInOut(prog(t, p + 0.12, p + 0.5));
+    const pulse = 0.1 * up * (1 - down);
+    E.zeroVal.style.transform = `scale(${(1 + pulse).toFixed(4)})`;
+    E.zeroLab.style.transform = `translateX(${f2(pulse * E.zeroValW)}px)`; // the label makes room for the swell
+    const lit = expoOut(prog(t, p, p + 0.08));
+    E.zeroVal.style.color = lit > 0 ? `rgb(${Math.round(lerp(229, 16, lit))},${Math.round(lerp(231, 185, lit))},${Math.round(lerp(235, 129, lit))})` : "";
+    const sub = expoOut(prog(t, 11.0, 11.3));
+    E.zeroSub.style.clipPath = insetPct(-30, (1 - sub) * 100, -30, 0);
+  }
+
+  function sceneEnd(t) {
+    const on = t >= 12.3 && t < T.cut;
+    vis(E.end, on);
+    if (!on) return;
+    E.end.style.transform = `translate(960px,540px) scale(${camZ(t).toFixed(5)}) translate(-960px,-540px)`;
+    const w = expoOut(prog(t, T.logo - 0.06, T.logo + 0.32));
+    E.ecWord.style.clipPath = insetPct(-20, (1 - w) * 100, -20, 0);
+    const tag = expoOut(prog(t, T.tag, T.tag + 0.36));
+    E.ecTag.style.clipPath = insetPct(0, 0, (1 - tag) * 100, 0);
+    E.ecTag.style.transform = `translateY(${f2(-14 * (1 - tag))}px)`;
+    const url = expoOut(prog(t, T.url, T.url + 0.36));
+    E.ecUrl.style.clipPath = insetPct(0, 0, (1 - url) * 100, 0);
+    E.ecUrl.style.transform = `translateY(${f2(-12 * (1 - url))}px)`;
+    const key = expoOut(prog(t, T.key, T.key + 0.22));
+    E.ecKey.style.color = key > 0 ? `rgb(${Math.round(lerp(156, 16, key))},${Math.round(lerp(163, 185, key))},${Math.round(lerp(175, 129, key))})` : "";
+  }
+
+  // ───────────────────────── the ◈ ─────────────────────────
+  // Eight anchors (T, TR, R, BR, B, BL, L, TL) joined by cubic edges, plus a filled inner shape.
+  // Every pose uses this one structure, so any two poses morph by interpolating numbers.
+  function straight(A) {
+    const C1 = [], C2 = [];
+    for (let i = 0; i < 8; i++) {
+      const a = A[i], b = A[(i + 1) % 8];
+      C1.push([a[0] + (b[0] - a[0]) / 3, a[1] + (b[1] - a[1]) / 3]);
+      C2.push([a[0] + (2 * (b[0] - a[0])) / 3, a[1] + (2 * (b[1] - a[1])) / 3]);
+    }
+    return { A, C1, C2 };
+  }
+  const DIAMOND = straight([[0, -1], [0.5, -0.5], [1, 0], [0.5, 0.5], [0, 1], [-0.5, 0.5], [-1, 0], [-0.5, -0.5]]);
+  const CIRCLE = (() => {
+    const A = [], C1 = [], C2 = [], h = (4 / 3) * Math.tan(Math.PI / 16);
+    for (let i = 0; i < 8; i++) {
+      const a0 = -Math.PI / 2 + (i * Math.PI) / 4, a1 = a0 + Math.PI / 4;
+      A.push([Math.cos(a0), Math.sin(a0)]);
+      C1.push([Math.cos(a0) - h * Math.sin(a0), Math.sin(a0) + h * Math.cos(a0)]);
+      C2.push([Math.cos(a1) + h * Math.sin(a1), Math.sin(a1) - h * Math.cos(a1)]);
+    }
+    return { A, C1, C2 };
+  })();
+  const SHIELD = {
+    A: [[0, -1], [0.8, -0.74], [0.8, 0.04], [0.5, 0.72], [0, 1], [-0.5, 0.72], [-0.8, 0.04], [-0.8, -0.74]],
+    C1: [[0.16, -0.86], [0.8, -0.48], [0.8, 0.3], [0.34, 0.86], [-0.12, 0.95], [-0.68, 0.54], [-0.8, -0.22], [-0.46, -0.76]],
+    C2: [[0.46, -0.76], [0.8, -0.22], [0.68, 0.54], [0.12, 0.95], [-0.34, 0.86], [-0.8, 0.3], [-0.8, -0.48], [-0.16, -0.86]],
+  };
+  const FULL = () => Array.from({ length: 8 }, () => [0, 1]);
+
+  function place(S, cx, cy, s, rot = 0) {
+    const c = Math.cos(rot), n = Math.sin(rot);
+    const tf = (p) => [cx + s * (p[0] * c - p[1] * n), cy + s * (p[0] * n + p[1] * c)];
+    return { P: S.A.map(tf), C1: S.C1.map(tf), C2: S.C2.map(tf) };
+  }
+  const pose = (S, cx, cy, s, o) => Object.assign(place(S, cx, cy, s, o.rot || 0), { tr: FULL(), ic: [cx, cy + (o.iy || 0) * s], ir: o.ir * s, iq: o.iq, irot: o.rot || 0, w: o.w, glow: o.glow, op: 1 });
+  const glyph = (cx, cy, s, rot = 0, glow = 0.55) => pose(DIAMOND, cx, cy, s, { rot, ir: 0.42, iq: 0, w: Math.max(1.5, 0.17 * s), glow });
+  const dot = (cx, cy, r, glow = 1) => pose(CIRCLE, cx, cy, r, { ir: 1, iq: 1, w: Math.max(1.2, 0.2 * r), glow });
+  const shield = (cx, cy, s, glow = 0.5) => pose(SHIELD, cx, cy, s, { ir: 0.33, iq: 0, iy: -0.04, w: Math.max(1.5, 0.17 * s), glow });
+  /** The two strokes of `//`, fitted to the measured glyph box; the connecting edges retract into them. */
+  function slashes(r) {
+    const cw = r.w / 2, yt = r.y + 0.19 * r.h, yb = r.y + 0.86 * r.h, xa = 0.2 * cw, xb = 0.8 * cw;
+    const b1 = [r.x + xa, yb], t1 = [r.x + xb, yt], t2 = [r.x + cw + xb, yt], b2 = [r.x + cw + xa, yb];
+    const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const P = [t1, mid(t1, t2), t2, mid(t2, b2), b2, mid(b2, b1), b1, mid(b1, t1)];
+    const g = straight(P);
+    return { P, C1: g.C1, C2: g.C2, tr: [[0, 0], [1, 1], [0, 1], [0, 1], [0, 0], [1, 1], [0, 1], [0, 1]], ic: [r.x + cw, (yt + yb) / 2], ir: 0, iq: 0, irot: 0, w: Math.max(1.6, 0.085 * r.h), glow: 0.4, op: 1 };
+  }
+  function mix(a, b, u) {
+    if (u <= 0) return a;
+    if (u >= 1) return b;
+    const lp = (p, q) => [lerp(p[0], q[0], u), lerp(p[1], q[1], u)];
+    return {
+      P: a.P.map((p, i) => lp(p, b.P[i])), C1: a.C1.map((p, i) => lp(p, b.C1[i])), C2: a.C2.map((p, i) => lp(p, b.C2[i])),
+      tr: a.tr.map((p, i) => lp(p, b.tr[i])), ic: lp(a.ic, b.ic), ir: lerp(a.ir, b.ir, u), iq: lerp(a.iq, b.iq, u),
+      irot: lerp(a.irot, b.irot, u), w: lerp(a.w, b.w, u), glow: lerp(a.glow, b.glow, u), op: lerp(a.op, b.op, u),
+    };
+  }
+  const qbez = (p0, c, p1, u) => [
+    (1 - u) * (1 - u) * p0[0] + 2 * (1 - u) * u * c[0] + u * u * p1[0],
+    (1 - u) * (1 - u) * p0[1] + 2 * (1 - u) * u * c[1] + u * u * p1[1],
+  ];
+
+  /** The ◈ at time t, from anchors measured on this frame. */
+  function heroAt(t, A) {
+    if (t < T.fall || t >= T.cut) return null;
+    const S0 = 34;
+    if (t < T.impact) {
+      const u = prog(t, T.fall, T.impact);
+      return glyph(A.gap.cx, lerp(-90, A.gap.cy, u * u), S0, (1 - u * u) * (Math.PI / 2));
+    }
+    if (t < T.dockStart) return glyph(A.gap.cx, A.gap.cy, S0 * (1 + 0.08 * bump(t, T.impact, 0.2)));
+    if (t < T.docked) {
+      const u = cubicInOut(prog(t, T.dockStart, T.docked));
+      const p = qbez([A.gap.cx, A.gap.cy], [lerp(A.gap.cx, A.hdr.cx, 0.45), A.hdr.cy - 30], [A.hdr.cx, A.hdr.cy], u);
+      return glyph(p[0], p[1], lerp(S0, A.hdr.s, u));
+    }
+    if (t < T.click) return glyph(A.hdr.cx, A.hdr.cy, A.hdr.s);
+    if (t < T.onRail) {
+      const u = cubicInOut(prog(t, T.click, T.onRail));
+      const p = qbez([A.hdr.cx, A.hdr.cy], [A.hdr.cx + 10, A.start.cy - 40], [A.start.cx, A.start.cy], u);
+      return mix(glyph(p[0], p[1], A.hdr.s), dot(p[0], p[1], 11), sineInOut(prog(t, T.click + 0.03, T.onRail - 0.06)));
+    }
+    if (t < T.drop) return dot(railPos(t, A), A.start.cy, 11);
+    if (t < T.landed) {
+      const u = cubicInOut(prog(t, T.drop, T.landed));
+      const p = qbez([A.end.cx, A.end.cy], [A.end.cx + 30, lerp(A.end.cy, A.sec.cy, 0.85)], [A.sec.cx, A.sec.cy], u);
+      return mix(dot(p[0], p[1], 11), shield(p[0], p[1], A.sec.s), sineInOut(prog(t, T.drop + 0.12, T.landed - 0.02)));
+    }
+    if (t < T.lift) return shield(A.sec.cx, A.sec.cy, A.sec.s * (1 + 0.18 * bump(t, T.filter, 0.24)));
+    if (t < T.slashed) {
+      const u = cubicInOut(prog(t, T.lift, T.slashed));
+      const p = qbez([A.sec.cx, A.sec.cy], [lerp(A.sec.cx, A.slash.cx, 0.35), Math.min(A.sec.cy, A.slash.cy) - 90], [A.slash.cx, A.slash.cy], u);
+      const s = lerp(A.sec.s, A.slash.h * 0.42, u);
+      const moving = mix(shield(p[0], p[1], s), glyph(p[0], p[1], s), sineInOut(prog(u, 0, 0.4)));
+      return mix(moving, slashes(A.slash), sineInOut(prog(u, 0.55, 1)));
+    }
+    if (t < T.trace) return slashes(A.slash);
+    if (t < T.traced) return mix(slashes(A.slash), dot(A.bar.cx, A.bar.cy, 9, 0.9), cubicInOut(prog(t, T.trace + 0.02, T.traced)));
+    if (t < T.rise) return dot(A.bar.cx, A.bar.cy, 9, 0.9);
+    if (t < T.risen) {
+      const u = cubicInOut(prog(t, T.rise, T.risen));
+      return dot(lerp(A.bar.cx, 960, u), lerp(A.bar.cy, 540, u), lerp(9, 12, u), 0.9);
+    }
+    const u = cubicInOut(prog(t, T.risen, T.logo));
+    const g = clamp(spring(t, T.risen + 0.02, 0.42), 0, 1.05);
+    const cx = lerp(960, A.logo.cx, u), cy = lerp(540, A.logo.cy, u);
+    return mix(dot(cx, cy, lerp(12, A.logo.s, g), 0.9), glyph(cx, cy, lerp(12, A.logo.s, g), 0, 0.6), sineInOut(prog(t, T.risen, T.risen + 0.26)));
+  }
+
+  function split(p0, p1, p2, p3, u) {
+    const l = (a, b) => [lerp(a[0], b[0], u), lerp(a[1], b[1], u)];
+    const a = l(p0, p1), b = l(p1, p2), c = l(p2, p3), d = l(a, b), e = l(b, c), f = l(d, e);
+    return [[p0, a, d, f], [f, e, c, p3]];
+  }
+  const pt = (p) => `${p[0].toFixed(2)} ${p[1].toFixed(2)}`;
+  function drawHero(G) {
+    if (!G) {
+      E.heroWrap.style.display = "none";
+      return null;
+    }
+    E.heroWrap.style.display = "";
+    let d = "";
+    for (let i = 0; i < 8; i++) {
+      const [u0, u1] = G.tr[i];
+      if (u1 - u0 < 0.004) continue;
+      let seg = [G.P[i], G.C1[i], G.C2[i], G.P[(i + 1) % 8]];
+      if (u1 < 1) seg = split(...seg, u1)[0];
+      if (u0 > 0) seg = split(...seg, u0 / u1)[1];
+      d += `M${pt(seg[0])}C${pt(seg[1])} ${pt(seg[2])} ${pt(seg[3])}`;
+    }
+    let inner = "";
+    if (G.ir > 0.15) {
+      const k = lerp(1 / 3, 0.5523, G.iq);
+      const c = Math.cos(G.irot), n = Math.sin(G.irot);
+      const tf = (x, y) => [G.ic[0] + G.ir * (x * c - y * n), G.ic[1] + G.ir * (x * n + y * c)];
+      // quadrant from (0,-1) to (1,0): straight edge → (1/3,-2/3),(2/3,-1/3); circle → (k,-1),(1,-k)
+      const quad = (r) => {
+        const rot = ([x, y]) => [x * Math.cos(r) - y * Math.sin(r), x * Math.sin(r) + y * Math.cos(r)];
+        const c1 = rot([lerp(1 / 3, k, G.iq), lerp(-2 / 3, -1, G.iq)]);
+        const c2 = rot([lerp(2 / 3, 1, G.iq), lerp(-1 / 3, -k, G.iq)]);
+        const e = rot([1, 0]);
+        return `C${pt(tf(...c1))} ${pt(tf(...c2))} ${pt(tf(...e))}`;
+      };
+      inner = `M${pt(tf(0, -1))}` + [0, 1, 2, 3].map((i) => quad((i * Math.PI) / 2)).join("") + "Z";
+    }
+    const w = G.w.toFixed(2);
+    E.heroOutline.setAttribute("d", d);
+    E.heroOutline.setAttribute("stroke-width", w);
+    E.heroInner.setAttribute("d", inner);
+    E.heroGlowOutline.setAttribute("d", d);
+    E.heroGlowOutline.setAttribute("stroke-width", (G.w + 2).toFixed(2));
+    E.heroGlowInner.setAttribute("d", inner);
+    E.heroGlow.style.opacity = (0.75 * G.glow).toFixed(3);
+    E.heroWrap.style.opacity = G.op.toFixed(3);
+    return G;
+  }
+
+  // ───────────────────────── cursor ─────────────────────────
+  const CURSOR = [
+    { t0: 1.52, t1: 2.25, keys: [[1.52, "run", 300, 200], [1.94, "run", -36, 8]], press: [T.click], out: [2.08, 2.24] },
+    { t0: 4.1, t1: 5.32, keys: [[4.1, "pill", -120, 250], [4.44, "pill", 18, 10], [4.6, "pill", 18, 10], [4.94, "row", 40, 6]], press: [T.filter, T.expand], out: [5.14, 5.3] },
+    { t0: 7.6, t1: 8.42, keys: [[7.6, "copy", -300, 210], [7.94, "copy", -16, 6]], press: [T.copy], out: [8.22, 8.4] },
+  ];
+  function cursorAt(t, A) {
+    const c = CURSOR.find((k) => t >= k.t0 && t < k.t1);
+    if (!c) return null;
+    const P = (k) => [A[k[1]].cx + k[2], A[k[1]].cy + k[3]];
+    let p = P(c.keys[0]);
+    for (let i = 0; i < c.keys.length - 1; i++) {
+      const a = c.keys[i], b = c.keys[i + 1];
+      if (t >= a[0]) p = (() => { const u = cubicInOut(prog(t, a[0], b[0])); const pa = P(a), pb = P(b); return [lerp(pa[0], pb[0], u), lerp(pa[1], pb[1], u) - 26 * Math.sin(Math.PI * u)]; })();
+    }
+    let s = clamp(spring(t, c.t0, 0.3), 0, 1.05) * (1 - expoIn(prog(t, c.out[0], c.out[1])));
+    for (const pr of c.press) s *= 1 - 0.16 * bump(t, pr - 0.02, 0.16);
+    return { x: p[0], y: p[1], s };
+  }
+
+  // ───────────────────────── frame ─────────────────────────
+  const rectOf = (el) => {
+    const r = el.getBoundingClientRect();
+    return { x: r.left, y: r.top, w: r.width, h: r.height, cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+  };
+  const NONE = { x: 0, y: 0, w: 0, h: 0, cx: 0, cy: 0 };
+
+  function measure(t) {
+    const A = {};
+    const m = (key, el, on) => (A[key] = on ? rectOf(el) : NONE);
+    const app = t >= 0.98 && t < 2.32, pipe = t >= 1.99 && t < 4.6, mx = t >= 3.45 && t < 6.52;
+    const code = t >= 5.98 && t < 9.37, tele = t >= 8.98 && t < 12.45, end = t >= 12.3 && t < T.cut;
+    m("gap", E.hookGap, t < 1.95);
+    m("hdr", E.slotHdr, app);
+    A.hdr.s = A.hdr.h * 0.4;
+    m("run", E.runBtn, app);
+    m("start", E.railStart, pipe);
+    m("end", E.railEnd, pipe);
+    ["p0", "p1", "p2"].forEach((k, i) => m(k, ports[i], pipe));
+    m("sec", E.slotSec, mx);
+    A.sec.s = A.sec.h * 0.5;
+    m("row", E.r2id, mx);
+    m("pill", E.pSec, mx);
+    m("r2", rowEls[2], mx);
+    m("slash", E.slotSlash, code);
+    m("line", E.heroLine, code);
+    m("copy", E.copyBtn, code);
+    m("bar", E.barStart, tele);
+    m("logo", E.slotLogo, end);
+    A.logo.s = A.logo.h * 0.46;
+    return A;
+  }
+
+  const diamondPoly = (cx, cy, R) => `polygon(${f2(cx)}px ${f2(cy - R)}px, ${f2(cx + R)}px ${f2(cy)}px, ${f2(cx)}px ${f2(cy + R)}px, ${f2(cx - R)}px ${f2(cy)}px)`;
+  const reachCorners = (sx, sy) => Math.max(sx + sy, 1920 - sx + sy, sx + 1080 - sy, 1920 - sx + 1080 - sy);
+
+  function seek(t) {
+    t = Math.max(0, Math.min(15, Number(t) || 0));
+    const c = cam(t);
+    E.world.style.transform = `translate(960px,540px) scale(${c.z.toFixed(5)}) translate(${f2(-c.x)}px,${f2(-c.y)}px)`;
+
+    sceneHook(t);
+    sceneApp(t);
+    scenePipe(t);
+    sceneMatrix(t);
+    sceneCode(t);
+    sceneTele(t);
+    sceneEnd(t);
+
+    const A = measure(t);
+
+    // the ◈, blurred along its own direction of travel
+    const G = drawHero(heroAt(t, A));
+    if (G) {
+      const h = 1 / 240;
+      const g0 = heroAt(t - h, A), g1 = heroAt(t + h, A);
+      const vx = g0 && g1 ? (g1.ic[0] - g0.ic[0]) / (2 * h) : 0, vy = g0 && g1 ? (g1.ic[1] - g0.ic[1]) / (2 * h) : 0;
+      const sigma = Math.min(24, Math.hypot(vx, vy) * 0.0034);
+      if (sigma > 0.35) {
+        const deg = ((Math.atan2(vy, vx) * 180) / Math.PI).toFixed(2), c0 = `${f2(G.ic[0])} ${f2(G.ic[1])}`;
+        E.heroMbB.setAttribute("stdDeviation", `${f2(sigma)} 0`);
+        E.heroWrap.setAttribute("transform", `rotate(${deg} ${c0})`);
+        E.heroTurn.setAttribute("transform", `rotate(${-deg} ${c0})`);
+        E.heroWrap.setAttribute("filter", "url(#heroMb)");
+      } else {
+        E.heroWrap.removeAttribute("transform");
+        E.heroTurn.removeAttribute("transform");
+        E.heroWrap.removeAttribute("filter");
+      }
+      E.heroGlowB.setAttribute("stdDeviation", f2(4 + 6 * G.glow));
+    }
+
+    // iris: the studio opens out of the ◈ past all four corners; the hook keeps only what lies outside it
+    if (t >= T.impact && t < 1.62) {
+      const R = 1.12 * reachCorners(A.gap.cx, A.gap.cy) * expoOut(prog(t, T.impact, T.impact + 0.55));
+      const [wx, wy] = toWorld(c, A.gap.cx, A.gap.cy), Rw = R / c.z;
+      E.app.style.clipPath = diamondPoly(wx, wy, Rw);
+      E.hook.style.clipPath = `polygon(evenodd, -3000px -3000px, 5000px -3000px, 5000px 5000px, -3000px 5000px, -3000px -3000px, ${f2(wx - Rw)}px ${f2(wy)}px, ${f2(wx)}px ${f2(wy + Rw)}px, ${f2(wx + Rw)}px ${f2(wy)}px, ${f2(wx)}px ${f2(wy - Rw)}px, ${f2(wx - Rw)}px ${f2(wy)}px, -3000px -3000px)`;
+    } else {
+      E.app.style.clipPath = t < T.impact ? "polygon(0 0, 0 0, 0 0)" : "none";
+      E.hook.style.clipPath = "none";
+    }
+
+    // the rail lights up behind the dot; chevrons light as it passes
+    if (t >= 1.99 && t < 4.6) {
+      const dx = G && t >= T.onRail ? toWorld(c, G.ic[0], G.ic[1])[0] : 130;
+      const lit = t >= T.drop ? 1790 : clamp(dx, 130, 1790);
+      E.railLit.style.width = f2(lit - 130) + "px";
+      [766, 1216, 1792].forEach((x, i) => (E["chev" + i].style.color = lit >= x - 6 ? "rgba(16,185,129,0.85)" : "#334155"));
+    }
+
+    // FIT-SEC-001's row opens into the code panel
+    if (t >= 5.98 && t < 9.37) {
+      const P = { x: 190, y: 790, w: 1540, h: 760 };
+      const open = cubicInOut(prog(t, 6.12, T.slashed));
+      let R = P;
+      if (t < T.slashed) {
+        const r = rectToWorld(c, A.r2);
+        R = { x: lerp(r.x, P.x, open), y: lerp(r.y, P.y, open), w: lerp(r.w, P.w, open), h: lerp(r.h, P.h, open) };
+      }
+      // beat 19: the panel folds onto the ◈ line, trimmed to the trace's width
+      const fold = expoIn(prog(t, T.trace, T.trace + 0.22));
+      if (t >= T.trace) {
+        const L = rectToWorld(c, A.line), band = L.y + L.h / 2;
+        R = { x: P.x, y: lerp(P.y, band - 1, fold), w: lerp(P.w, 1020, fold), h: lerp(P.h, 2, fold) };
+      }
+      const showPanel = t >= 6.12 && !(t >= T.trace + 0.22);
+      E.codePanel.style.visibility = showPanel ? "visible" : "hidden";
+      E.codePanel.style.clipPath = insetPx(R.y - P.y, P.x + P.w - (R.x + R.w), P.y + P.h - (R.y + R.h), R.x - P.x, 18);
+      const framing = (t >= 6.12 && t < T.slashed) || (t >= T.trace && t < T.trace + 0.22);
+      E.codeFrame.style.display = framing ? "block" : "none";
+      Object.assign(E.codeFrame.style, { left: f2(R.x) + "px", top: f2(R.y) + "px", width: f2(R.w) + "px", height: f2(R.h) + "px" });
+    }
+
+    // the trace unfolds out of that line
+    if (t >= 8.98 && t < 12.45) {
+      const P = { x: 190, y: 850, w: 1020, h: 620 };
+      let top = 0, bottom = 0;
+      if (t < 9.52) {
+        const L = A.line.h > 0 ? rectToWorld(c, A.line) : { y: 1130, h: 42 };
+        const band = L.y + L.h / 2 - P.y;
+        const u = expoOut(prog(t, T.trace + 0.2, 9.52));
+        top = lerp(band - 1, 0, u);
+        bottom = lerp(P.h - band - 1, 0, u);
+      }
+      E.wfPanel.style.visibility = t >= T.trace + 0.2 ? "visible" : "hidden";
+      E.wfPanel.style.clipPath = insetPx(top, 0, bottom, 0, 18);
+    }
+
+    // beat 25: everything closes into the ◈ as it rises
+    if (G && t >= T.rise && t < T.risen + 0.1) {
+      const R = 1.1 * reachCorners(G.ic[0], G.ic[1]) * (1 - cubicInOut(prog(t, T.rise, T.risen - 0.02)));
+      const [wx, wy] = toWorld(c, G.ic[0], G.ic[1]);
+      E.world.style.clipPath = diamondPoly(wx, wy, Math.max(0, R / c.z));
+    } else E.world.style.clipPath = "none";
+
+    // camera motion blur along the pan
+    const vx = Math.abs(deriv(camX, t)) * c.z, vy = Math.abs(deriv(camY, t)) * c.z;
+    const bx = Math.min(10, vx * 0.003), by = Math.min(10, vy * 0.003);
+    E.mbWorldB.setAttribute("stdDeviation", `${f2(bx / c.z)} ${f2(by / c.z)}`);
+    E.world.style.filter = bx + by > 0.35 ? "url(#mbWorld)" : "none";
+
+    // cursor
+    const k = cursorAt(t, A);
+    E.cursor.style.display = k && k.s > 0.002 ? "block" : "none";
+    if (k) E.curG.setAttribute("transform", `translate(${f2(k.x)} ${f2(k.y)}) scale(${(1.15 * k.s).toFixed(4)})`);
+
+    // beats 29-30: hard cut
+    E.cut.style.display = t >= T.cut ? "block" : "none";
+    return t;
+  }
+
+  // ───────────────────────── soundtrack ─────────────────────────
+  async function renderAudio() {
+    const SR = 48000, LEN = 15;
+    const ctx = new OfflineAudioContext({ numberOfChannels: 2, length: SR * LEN, sampleRate: SR });
+    // a memoryless soft clip glues the mix; a compressor's start-up envelope ducked the first kick
+    const bus = ctx.createGain();
+    bus.gain.setValueAtTime(0.85, 0);
+    bus.gain.setValueAtTime(0.85, LEN - 0.22);
+    bus.gain.linearRampToValueAtTime(0, LEN); // the ring-out lands on silence, so the file loops clean
+    const clip = ctx.createWaveShaper();
+    const soft = new Float32Array(2048);
+    for (let i = 0; i < soft.length; i++) {
+      const x = (i / (soft.length - 1)) * 2 - 1;
+      soft[i] = Math.tanh(1.3 * x) / Math.tanh(1.3);
+    }
+    clip.curve = soft;
+    bus.connect(clip).connect(ctx.destination);
+
+    let seed = 0x5eed;
+    const rnd = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296) * 2 - 1;
+    const noise = ctx.createBuffer(1, SR, SR);
+    const nd = noise.getChannelData(0);
+    for (let i = 0; i < nd.length; i++) nd[i] = rnd();
+
+    // soft saturation gives the sub kick enough harmonics to read on laptop speakers
+    const sat = ctx.createWaveShaper();
+    const curve = new Float32Array(2048);
+    for (let i = 0; i < curve.length; i++) {
+      const x = (i / (curve.length - 1)) * 2 - 1;
+      curve[i] = Math.tanh(2 * x) / Math.tanh(2);
+    }
+    sat.curve = curve;
+    sat.oversample = "4x";
+    const kickBus = ctx.createGain();
+    kickBus.gain.value = 0.9;
+    kickBus.connect(sat).connect(bus);
+
+    function kick(t0, last) {
+      const o = ctx.createOscillator();
+      o.type = "sine";
+      o.frequency.setValueAtTime(last ? 118 : 112, t0);
+      o.frequency.exponentialRampToValueAtTime(last ? 60 : 70, t0 + 0.045);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(last ? 1 : 0.9, t0 + 0.003);
+      g.gain.setTargetAtTime(0, t0 + 0.003, last ? 0.27 : 0.075);
+      o.connect(g).connect(kickBus);
+      o.start(t0);
+      o.stop(t0 + (last ? 0.999 * (LEN - t0) : 0.7));
+      const n = ctx.createBufferSource();
+      n.buffer = noise;
+      const hp = ctx.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 3000;
+      const ng = ctx.createGain();
+      ng.gain.setValueAtTime(last ? 0.1 : 0.07, t0);
+      ng.gain.setTargetAtTime(0, t0, 0.0035);
+      n.connect(hp).connect(ng).connect(bus);
+      n.start(t0, (t0 * 0.137) % 0.9, 0.04);
+    }
+    function chime(t0) {
+      for (const [f, a, tau, pan] of [[2093, 0.2, 0.17, 0], [2096.6, 0.1, 0.15, 0.35], [3136, 0.07, 0.1, -0.3], [4186, 0.05, 0.07, 0.15]]) {
+        const o = ctx.createOscillator();
+        o.type = "sine";
+        o.frequency.value = f;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0, t0);
+        g.gain.linearRampToValueAtTime(a, t0 + 0.004);
+        g.gain.setTargetAtTime(0, t0 + 0.004, tau);
+        const p = ctx.createStereoPanner();
+        p.pan.value = pan;
+        o.connect(g).connect(p).connect(bus);
+        o.start(t0);
+        o.stop(t0 + 1.4);
+      }
+    }
+    function snap(t0) {
+      const n = ctx.createBufferSource();
+      n.buffer = noise;
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = 3400;
+      bp.Q.value = 1.4;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(1.1, t0 + 0.0015);
+      g.gain.setTargetAtTime(0, t0 + 0.0015, 0.026);
+      n.connect(bp).connect(g).connect(bus);
+      n.start(t0, 0.31, 0.35);
+      for (const [f, a, tau] of [[1873, 0.11, 0.09], [2741, 0.09, 0.07], [3967, 0.07, 0.05], [5413, 0.05, 0.04]]) {
+        const o = ctx.createOscillator();
+        o.type = "sine";
+        o.frequency.value = f;
+        const g2 = ctx.createGain();
+        g2.gain.setValueAtTime(0, t0);
+        g2.gain.linearRampToValueAtTime(a, t0 + 0.002);
+        g2.gain.setTargetAtTime(0, t0 + 0.002, tau);
+        o.connect(g2).connect(bus);
+        o.start(t0);
+        o.stop(t0 + 0.8);
+      }
+    }
+
+    for (let i = 0; i <= 28; i++) kick(i * 0.5, i === 28); // beats 1-29; the cut's kick rings out
+    for (const t0 of [2, 4, 6, 9, 12]) chime(t0); // scene changes: beats 5, 9, 13, 19, 25
+    snap(T.payoff); // beat 22, the $0.00
+
+    const buf = await ctx.startRendering();
+    const L = buf.getChannelData(0), R = buf.getChannelData(1);
+    let peak = 0;
+    for (let i = 0; i < L.length; i++) peak = Math.max(peak, Math.abs(L[i]), Math.abs(R[i]));
+    const gain = peak > 0 ? 0.891 / peak : 1; // -1 dBFS
+    const frames = L.length, bytes = 44 + frames * 4;
+    const dv = new DataView(new ArrayBuffer(bytes));
+    const str = (o, s) => [...s].forEach((ch, i) => dv.setUint8(o + i, ch.charCodeAt(0)));
+    str(0, "RIFF"); dv.setUint32(4, bytes - 8, true); str(8, "WAVE"); str(12, "fmt ");
+    dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 2, true); dv.setUint32(24, SR, true);
+    dv.setUint32(28, SR * 4, true); dv.setUint16(32, 4, true); dv.setUint16(34, 16, true); str(36, "data"); dv.setUint32(40, frames * 4, true);
+    for (let i = 0, o = 44; i < frames; i++, o += 4) {
+      dv.setInt16(o, Math.round(clamp(L[i] * gain, -1, 1) * 32767), true);
+      dv.setInt16(o + 2, Math.round(clamp(R[i] * gain, -1, 1) * 32767), true);
+    }
+    const u8 = new Uint8Array(dv.buffer);
+    let bin = "";
+    for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    return btoa(bin);
+  }
+
+  // ───────────────────────── boot ─────────────────────────
+  window.seek = seek;
+  window.renderAudio = renderAudio;
+  window.__ready = false;
+  Promise.all([
+    document.fonts.load('400 20px "Inter"'),
+    document.fonts.load('600 20px "Inter"'),
+    document.fonts.load('700 20px "Inter"'),
+  ])
+    .then(() => document.fonts.ready)
+    .then(() => {
+      build();
+      seek(0);
+      window.__ready = true;
+      if (new URLSearchParams(location.search).has("scrub")) {
+        const fit = () => (document.getElementById("stage").style.zoom = Math.min(innerWidth / 1920, (innerHeight - 46) / 1080));
+        document.documentElement.style.overflow = document.body.style.overflow = "auto";
+        document.getElementById("scrub").style.display = "flex";
+        const inp = document.getElementById("scrubIn"), lab = document.getElementById("scrubT");
+        inp.addEventListener("input", () => (lab.textContent = seek(Number(inp.value)).toFixed(2) + " s"));
+        addEventListener("resize", fit);
+        fit();
+      }
+    });
+})();
+</script>
+</body>
+</html>

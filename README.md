@@ -52,10 +52,11 @@ Every artifact carries `mode: "gemma" | "fallback" | "mixed"`. The header chip i
 | `GEMMA_MAX_TOKENS_MATRIX` | `3072` | Max output tokens for QA Matrix Architect |
 | `GEMMA_MAX_TOKENS_CODEGEN` | `2560` | Max output tokens for Playwright Codegen |
 | `OLLAMA_TIMEOUT_MS` | `300000` | Per-call timeout, then per-step fallback |
-| `SENTRY_DSN` | `` | Empty = fully air-gapped; spans are no-ops |
+| `SENTRY_DSN` | `` | Empty = no outbound telemetry; spans stay in-process |
 | `SENTRY_ENVIRONMENT` | `local` | Sentry environment |
 | `SENTRY_TRACES_SAMPLE_RATE` | `1.0` | Trace sample rate |
 | `SENTRY_SEND_DEFAULT_PII` | `true` | Prompt/response previews in AI Agents view |
+| `SENTRY_TRACE_URL_TEMPLATE` | `` | Optional deep-link template with `{traceId}` for the UI's "Open in Sentry" action |
 | `PORT` | `8787` | API port |
 | `DATA_DIR` | `./data` | `runs.json` location (atomic write temp+rename) |
 | `FORCE_FALLBACK` | `false` | Demo fallback even with Ollama running |
