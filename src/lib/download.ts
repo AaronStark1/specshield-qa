@@ -1,7 +1,6 @@
-/** Trigger a browser download. Returns false if the Blob/anchor path is unavailable. */
-export function downloadText(filename: string, content: string, mime = "text/plain"): boolean {
+/** Trigger a browser download of a Blob. Returns false if the Blob/anchor path is unavailable. */
+export function downloadBlob(filename: string, blob: Blob): boolean {
   try {
-    const blob = new Blob([content], { type: `${mime};charset=utf-8` });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -11,6 +10,14 @@ export function downloadText(filename: string, content: string, mime = "text/pla
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
     return true;
+  } catch {
+    return false;
+  }
+}
+
+export function downloadText(filename: string, content: string, mime = "text/plain"): boolean {
+  try {
+    return downloadBlob(filename, new Blob([content], { type: `${mime};charset=utf-8` }));
   } catch {
     return false;
   }

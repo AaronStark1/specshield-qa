@@ -82,3 +82,8 @@ export function outcomeTone(o: RunOutcome): "emerald" | "amber" | "violet" | "re
       return "gray";
   }
 }
+
+/** Plain-language name for how a run was produced. */
+export function modeLabel(mode: string): string {
+  return mode === "gemma" ? "Local AI" : mode === "fallback" ? "Offline engine" : mode === "mixed" ? "Local AI + offline" : mode;
+}

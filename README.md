@@ -2,7 +2,7 @@
 
 Local-first studio that turns a pasted PRD into **structured requirements**, a **filterable QA test matrix**, and a **downloadable Playwright `.spec.ts` suite (Page Object Model)** — with **zero cloud calls** by default.
 
-Three **Mastra** agents run on **Google Gemma locally through Ollama**, traced with **Sentry Agent Tracing**. No Ollama? The app still runs in a polished **deterministic fallback mode**. No Sentry DSN? Spans become no-ops and the UI reads an in-process collector.
+Three **Mastra** agents run on **Google Gemma locally through Ollama**, traced with **Sentry Agent Tracing**. No Ollama? The app still runs in a polished **deterministic fallback mode**. No Sentry DSN? Spans become no-ops and nothing leaves the machine.
 
 ## Quick start
 
@@ -12,7 +12,13 @@ cp .env.example .env   # optional
 npm run dev            # API :8787 + UI :5173
 ```
 
-Open http://localhost:5173 → **Load Sample Spec (Invoice Tracker)** → **Run Pipeline**.
+Open http://localhost:5173 for the landing page, or go straight to the studio at http://localhost:5173/studio → pick the **Invoice Tracker** sample → **Generate Test Suite**.
+
+| Route | What it is |
+| --- | --- |
+| `/` | Landing page: a WebGL particle shield (Three.js GPGPU simulation with a cursor-driven fluid) and a plain-language explainer |
+| `/studio` | The studio: spec editor with sample loaders on the left, QA Matrix and Playwright Code tabs on the right |
+| `/studio?sample=invoice-tracker` | Opens the studio with a sample loaded (`invoice-tracker`, `auth-flow`, `checkout`) |
 
 With Ollama for live Gemma inference:
 
@@ -56,7 +62,7 @@ Every artifact carries `mode: "gemma" | "fallback" | "mixed"`. The header chip i
 | `SENTRY_ENVIRONMENT` | `local` | Sentry environment |
 | `SENTRY_TRACES_SAMPLE_RATE` | `1.0` | Trace sample rate |
 | `SENTRY_SEND_DEFAULT_PII` | `true` | Prompt/response previews in AI Agents view |
-| `SENTRY_TRACE_URL_TEMPLATE` | `` | Optional deep-link template with `{traceId}` for the UI's "Open in Sentry" action |
+| `SENTRY_TRACE_URL_TEMPLATE` | `` | Optional deep-link template with `{traceId}`, reported by `/api/health` |
 | `PORT` | `8787` | API port |
 | `DATA_DIR` | `./data` | `runs.json` location (atomic write temp+rename) |
 | `FORCE_FALLBACK` | `false` | Demo fallback even with Ollama running |
@@ -66,12 +72,20 @@ Every artifact carries `mode: "gemma" | "fallback" | "mixed"`. The header chip i
 
 ```
 Vite :5173 ──/api──▶ Hono :8787 ──▶ Mastra specShieldWorkflow ──▶ Gemma via Ollama :11434/v1
-  React Studio UI        │              1 Requirement Parser ─┐       (or deterministic fallback)
-   SpecEditor            │              2 QA Matrix Architect ─┤
-   Matrix|Playwright     │              3 Playwright Codegen ──┘
-   Telemetry|History     ├── Sentry ai.pipeline ▶ gen_ai.invoke_agent ▶ gen_ai.chat
-   RoiCalculator         └── JsonStore → ./data/runs.json (no DB)
+  Landing (/)            │              1 Requirement Parser ─┐       (or deterministic fallback)
+  Studio (/studio)       │              2 QA Matrix Architect ─┤
+   SpecEditor            │              3 Playwright Codegen ──┘
+   Matrix|Playwright     ├── Sentry ai.pipeline ▶ gen_ai.invoke_agent ▶ gen_ai.chat
+   History|Value est.    └── JsonStore → ./data/runs.json (no DB)
 ```
+
+## Front end
+
+- **Landing page** (`src/landing/`). The hero simulates 262,144 particles on desktop (65,536 on tablets, 16,384 on phones) in float textures: an SDF pulls them onto the shield, and a half-float stable-fluids solver turns cursor or touch movement into a wake that carries them off and lets them heal back. The simulation only runs while the hero is on screen. With `prefers-reduced-motion`, or without WebGL2 float render targets, a static SVG shield is shown instead.
+- **Studio** (`src/pages/Studio.tsx`). A three-step progress strip (Parsing Requirements → Architecting Matrix → Generating Code), the QA Matrix and Playwright Code tabs (Copy Suite, Download .zip), past runs behind History, and one privacy card.
+- **Privacy card.** "0 bytes outbound" is measured: the card counts requests this browser tab makes to any host other than the studio itself. It turns amber and says so when `SENTRY_DSN` is set, because traces (and prompt previews, unless `SENTRY_SEND_DEFAULT_PII=false`) then leave the machine.
+- **Fonts.** Inter, Font Awesome 6.5.2 and Geist Pixel Circle are bundled, so the studio makes no third-party requests. The landing page additionally links the BubbledotICG-FinePos display face from `db.onlinewebfonts.com`; offline, its title falls back to Geist Pixel Circle.
+- **Showcase clips.** `public/media/*.mp4` are recordings of the real studio. Re-record them with `cd showreel && npm install && npm run showcase` while the app runs with `FORCE_FALLBACK=true SENTRY_DSN=` (see `showreel/record-showcase.mjs`).
 
 ## Scripts
 
@@ -84,7 +98,9 @@ Vite :5173 ──/api──▶ Hono :8787 ──▶ Mastra specShieldWorkflow �
 
 ## Screenshots
 
-- `docs/studio-overview.png` — studio after a sample run
+- `docs/landing-hero.png` — landing page hero
+- `docs/studio-revamp.png` — the current studio after a sample run
+- `docs/studio-overview.png` — the original studio (cover image of the DEV post; keep the file name)
 - `docs/sentry-waterfall.png` — Sentry trace waterfall
 - `docs/sentry-span-attributes.png` — span attributes with `gen_ai.usage.*`
 

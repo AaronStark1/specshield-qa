@@ -1,38 +1,34 @@
-import { ExternalLink, ShieldCheck } from "lucide-react";
-import { useHealth } from "../../hooks/useHealth.ts";
-import { Badge } from "../ui/Badge.tsx";
+import { ShieldMark } from "../brand/ShieldMark.tsx";
 import { CONTAINER } from "../../lib/layout.ts";
+import { DOCS_URL, LICENSE_URL, REPO_URL } from "../../lib/links.ts";
+import { EngineStatusPill } from "./EngineStatusPill.tsx";
 
-const REPO_URL = "https://github.com/AaronStark1/specshield-qa";
+const LINKS = [
+  { label: "Documentation", href: DOCS_URL },
+  { label: "GitHub", href: REPO_URL },
+  { label: "MIT License", href: LICENSE_URL },
+] as const;
 
 export function Footer() {
-  const { health, error } = useHealth();
-  const modeChip = error ? (
-    <Badge tone="red" mono dot label="API offline">API OFFLINE</Badge>
-  ) : !health ? (
-    <Badge tone="gray" mono dot="pulse" label="Probing local API">PROBING</Badge>
-  ) : health.mode === "gemma" ? (
-    <Badge tone="emerald" mono dot label="Local Gemma inference active">LOCAL GEMMA</Badge>
-  ) : (
-    <Badge tone="amber" mono dot label="Deterministic fallback active">FALLBACK</Badge>
-  );
-
   return (
     <footer className="mt-auto border-t border-edge">
-      <div className={`${CONTAINER} flex flex-wrap items-center gap-x-4 gap-y-2 py-3 font-mono text-2xs text-fg-dim`}>
-        <span className="inline-flex items-center gap-1.5 text-fg-muted">
-          <ShieldCheck size={12} className="text-emerald-400" aria-hidden /> SpecShield QA
+      <div className={`${CONTAINER} grid items-center gap-x-4 gap-y-3 py-3 text-13 md:grid-cols-[1fr_auto_1fr]`}>
+        <span className="inline-flex items-center justify-center gap-2 text-fg-muted md:justify-start">
+          <ShieldMark size={16} />
+          SpecShield QA · v{__APP_VERSION__}
         </span>
-        {modeChip}
-        <span>Gemma via Ollama · Mastra workflow · Sentry agent tracing</span>
-        <span className="hidden sm:inline">runs persist to data/runs.json on the API host</span>
-        <nav aria-label="Project links" className="ml-auto flex flex-wrap items-center gap-3">
-          <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-fg-muted transition-colors hover:text-fg">
-            GitHub <ExternalLink size={11} aria-hidden />
-          </a>
-          <a href={`${REPO_URL}/blob/main/LICENSE`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-fg-muted transition-colors hover:text-fg">
-            MIT license <ExternalLink size={11} aria-hidden />
-          </a>
+        <div className="flex justify-center">
+          <EngineStatusPill />
+        </div>
+        <nav aria-label="Project links" className="flex flex-wrap items-center justify-center gap-x-2 text-fg-dim md:justify-end">
+          {LINKS.map((link, i) => (
+            <span key={link.label} className="inline-flex items-center gap-2">
+              {i > 0 && <span aria-hidden>·</span>}
+              <a href={link.href} target="_blank" rel="noopener noreferrer" className="text-fg-muted transition-colors hover:text-fg">
+                {link.label}
+              </a>
+            </span>
+          ))}
         </nav>
       </div>
     </footer>

@@ -1,0 +1,213 @@
+@font-face {
+  font-family: "Geist Pixel Circle";
+  src: url("../assets/fonts/GeistPixel-Circle.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+.landing {
+  background: var(--bg-pure);
+  color: var(--text-primary);
+}
+
+.landing-container {
+  width: 100%;
+  max-width: 1240px;
+  margin-inline: auto;
+  padding-inline: 20px;
+}
+@media (min-width: 768px) {
+  .landing-container {
+    padding-inline: 40px;
+  }
+}
+
+.font-display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-synthesis: none;
+}
+
+/* ── Hero ───────────────────────────────────────────────────────────────── */
+.hero {
+  position: relative;
+  height: 100vh;
+  height: 100svh;
+  min-height: 600px;
+  overflow: hidden;
+  background: var(--bg-pure);
+}
+
+.hero-canvas,
+.hero-static {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.hero-static {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 30vh;
+}
+@media (min-width: 1024px) {
+  .hero-static {
+    justify-content: flex-end;
+    padding: 0 9vw 0 0;
+  }
+}
+
+/* Keeps the copy legible where it overlaps the particle field. */
+.hero-shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(to top, #000 0%, rgba(0, 0, 0, 0.82) 22%, rgba(0, 0, 0, 0) 58%),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0) 18%);
+}
+@media (min-width: 1024px) {
+  .hero-shade {
+    background:
+      linear-gradient(to right, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.35) 34%, rgba(0, 0, 0, 0) 56%),
+      linear-gradient(to top, #000 0%, rgba(0, 0, 0, 0) 22%),
+      linear-gradient(to bottom, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0) 16%);
+  }
+}
+
+.hero-title {
+  font-size: clamp(32px, 6.4vw, 76px);
+  line-height: 1.04;
+  letter-spacing: 0.01em;
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.hero-hud {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  mix-blend-mode: plus-lighter;
+}
+
+.cta-glow {
+  box-shadow: 0 0 25px rgba(16, 185, 129, 0.4);
+  transition:
+    box-shadow 200ms ease,
+    transform 200ms ease,
+    background-color 200ms ease;
+}
+.cta-glow:hover {
+  box-shadow: 0 0 38px rgba(16, 185, 129, 0.6);
+  transform: translateY(-1px);
+}
+.cta-glow:active {
+  transform: translateY(0);
+}
+
+.pulse-dot {
+  position: relative;
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+.pulse-dot::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  border: 1px solid var(--accent);
+  opacity: 0;
+  animation: pulse-ring 2.2s ease-out infinite;
+}
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+
+/* ── Scroll reveal ──────────────────────────────────────────────────────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 700ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── Sections ───────────────────────────────────────────────────────────── */
+.section-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent-light);
+}
+
+.section-title {
+  font-size: clamp(28px, 4.2vw, 48px);
+  line-height: 1.08;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.hairline-card {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-canvas) 100%);
+}
+
+.video-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--bg-canvas);
+  aspect-ratio: 16 / 10;
+}
+.video-card video,
+.video-card img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top left;
+}
+.video-card-caption {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 56px 20px 18px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.6) 55%, rgba(0, 0, 0, 0) 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+  .pulse-dot::after {
+    display: none;
+  }
+}

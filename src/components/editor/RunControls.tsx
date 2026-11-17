@@ -1,35 +1,22 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, Eraser, FileUp, Play, Square } from "lucide-react";
-import { SAMPLE_SPEC, SAMPLE_SPEC_TITLE } from "@shared/sampleSpec.ts";
+import { AlertTriangle, Eraser, Play, Square } from "lucide-react";
 import { usePipelineStore } from "../../state/pipelineStore.ts";
 import { MIN_SPEC_CHARS, usePipeline } from "../../hooks/usePipeline.ts";
+import { getModifierLabel } from "../../hooks/useCommandShortcuts.ts";
+import { matchSample } from "../../lib/samples.ts";
 import { Button } from "../ui/Button.tsx";
 import { Kbd } from "../ui/Kbd.tsx";
 
-/** Platform modifier label for the run shortcut (⌘↵ on Apple platforms, Ctrl↵ elsewhere). Computed once. */
-export const MOD_KEY =
-  typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? "⌘" : "Ctrl";
-
-export type SpecSource = "sample" | "custom" | "empty";
-
-/** Where the editor text came from: the bundled sample, the user, or nothing (whitespace counts as nothing). */
-export function specSource(spec: string): SpecSource {
-  if (spec === SAMPLE_SPEC) return "sample";
-  return spec.trim().length === 0 ? "empty" : "custom";
-}
-
-/** Loads the bundled Invoice Tracker PRD and its title into the store. */
-export function loadSampleSpec(): void {
-  const st = usePipelineStore.getState();
-  st.setSpec(SAMPLE_SPEC);
-  st.setTitle(SAMPLE_SPEC_TITLE);
-}
-
 /** Clears both the spec and the run title. */
 export function clearSpec(): void {
-  const st = usePipelineStore.getState();
-  st.setSpec("");
-  st.setTitle("");
+  const store = usePipelineStore.getState();
+  store.setSpec("");
+  store.setTitle("");
+}
+
+/** True when the editor holds text the user wrote themselves (not empty, not a bundled sample). */
+export function isCustomSpec(spec: string): boolean {
+  return spec.trim().length > 0 && matchSample(spec) === null;
 }
 
 /**
@@ -75,44 +62,7 @@ export function InlineConfirm({ question, onConfirm, onCancel, confirmLabel = "C
   );
 }
 
-/**
- * Standalone "load the sample PRD" button. `SpecEditor` has its own template selector in the Panel header,
- * so App only needs this when rendering the editor pieces separately.
- */
-export function LoadSampleButton() {
-  const spec = usePipelineStore((s) => s.spec);
-  const running = usePipelineStore((s) => s.running);
-  const [confirm, setConfirm] = useState(false);
-  useEscapeDismiss(() => setConfirm(false));
-  const source = specSource(spec);
-
-  return (
-    <div className="space-y-2">
-      <Button
-        variant="secondary"
-        size="sm"
-        icon={<FileUp size={13} />}
-        disabled={running || source === "sample"}
-        onClick={() => (source === "custom" ? setConfirm(true) : loadSampleSpec())}
-        title={source === "sample" ? "Sample already loaded" : "Load the Invoice Tracker sample PRD"}
-      >
-        Load sample spec
-      </Button>
-      {confirm && (
-        <InlineConfirm
-          question="Replace custom spec with the sample?"
-          onConfirm={() => {
-            loadSampleSpec();
-            setConfirm(false);
-          }}
-          onCancel={() => setConfirm(false)}
-        />
-      )}
-    </div>
-  );
-}
-
-/** Run / Cancel / Clear. The global ⌘/Ctrl+Enter handler lives elsewhere; this only renders the hint. */
+/** Generate / Cancel / Clear. The global ⌘/Ctrl+Enter handler lives in `useCommandShortcuts`; this only renders the hint. */
 export function RunControls() {
   const spec = usePipelineStore((s) => s.spec);
   const title = usePipelineStore((s) => s.title);
@@ -120,21 +70,20 @@ export function RunControls() {
   const { run, cancel } = usePipeline();
   const [confirmClear, setConfirmClear] = useState(false);
   useEscapeDismiss(() => setConfirmClear(false));
+  const modifier = getModifierLabel();
 
-  const trimmed = spec.trim().length;
-  const remaining = Math.max(0, MIN_SPEC_CHARS - trimmed);
+  const remaining = Math.max(0, MIN_SPEC_CHARS - spec.trim().length);
   const valid = remaining === 0;
-  const source = specSource(spec);
-  const nothingToClear = source === "empty" && title.length === 0;
+  const nothingToClear = spec.trim().length === 0 && title.length === 0;
 
   const runTitle = running
-    ? "Pipeline is running"
+    ? "Generation is in progress"
     : valid
-      ? `${MOD_KEY}+Enter`
-      : `Need ${remaining.toLocaleString("en-US")} more character${remaining === 1 ? "" : "s"}`;
+      ? `${modifier}+Enter`
+      : `Add ${remaining.toLocaleString("en-US")} more character${remaining === 1 ? "" : "s"} to the spec`;
 
   const onClear = () => {
-    if (source === "custom") {
+    if (isCustomSpec(spec)) {
       setConfirmClear(true);
       return;
     }
@@ -151,19 +100,19 @@ export function RunControls() {
           onClick={() => void run()}
           className="min-w-0 flex-1"
           title={runTitle}
-          aria-label={running ? "Running pipeline" : "Run pipeline"}
+          aria-label={running ? "Generating test suite" : "Generate test suite"}
         >
           {running ? (
-            "Running…"
+            "Generating…"
           ) : (
             <>
-              Run pipeline
-              <Kbd size="xs" className="ml-1">{MOD_KEY}↵</Kbd>
+              Generate Test Suite
+              <Kbd size="xs" className="ml-1">{modifier}↵</Kbd>
             </>
           )}
         </Button>
         {running && (
-          <Button variant="danger" icon={<Square size={15} />} onClick={cancel} title="Abort the current run">
+          <Button variant="danger" icon={<Square size={15} />} onClick={cancel} title="Stop the current run">
             Cancel
           </Button>
         )}
@@ -172,14 +121,14 @@ export function RunControls() {
           icon={<Eraser size={15} />}
           disabled={running || nothingToClear || confirmClear}
           onClick={onClear}
-          title={running ? "Wait for the run to finish" : nothingToClear ? "Nothing to clear" : "Clear spec and title"}
+          title={running ? "Wait for the run to finish" : nothingToClear ? "Nothing to clear" : "Clear the spec and title"}
         >
           Clear
         </Button>
       </div>
       {confirmClear && (
         <InlineConfirm
-          question="Clear custom spec?"
+          question="Clear your spec?"
           onConfirm={() => {
             clearSpec();
             setConfirmClear(false);

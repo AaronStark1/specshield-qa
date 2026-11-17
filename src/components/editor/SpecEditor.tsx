@@ -1,29 +1,20 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { clsx } from "clsx";
-import { FileText } from "lucide-react";
-import { SAMPLE_SPEC_TITLE } from "@shared/sampleSpec.ts";
+import { FileText, Sparkles } from "lucide-react";
+import { SAMPLE_SPECS, type SampleSpec } from "@shared/sampleSpec.ts";
 import { usePipelineStore } from "../../state/pipelineStore.ts";
 import { MIN_SPEC_CHARS } from "../../hooks/usePipeline.ts";
-import { countLines, estimateTokens, formatNumber, formatTokens } from "../../lib/format.ts";
+import { countLines, formatNumber } from "../../lib/format.ts";
+import { loadSample, matchSample } from "../../lib/samples.ts";
 import { Badge } from "../ui/Badge.tsx";
 import { Panel } from "../ui/Panel.tsx";
-import { Tab, Tabs } from "../ui/Tabs.tsx";
-import { InlineConfirm, RunControls, clearSpec, loadSampleSpec, specSource, useEscapeDismiss } from "./LoadSampleButton.tsx";
+import { InlineConfirm, RunControls, isCustomSpec, useEscapeDismiss } from "./RunControls.tsx";
 
 const PLACEHOLDER =
-  "Paste a PRD: roles, requirements, limits (e.g. 10 MB, 12–64 chars), security notes…\n\n" +
-  `Minimum ${MIN_SPEC_CHARS} characters. Processed by the local API on this machine.`;
+  "Paste a PRD, user story or markdown spec: roles, requirements, limits (e.g. 8–64 characters), security notes…\n\n" +
+  "Everything you paste here stays on this machine.";
 
-const SOURCE_BADGE = {
-  sample: { tone: "cyan", text: "SAMPLE", title: "Bundled Invoice Tracker PRD" },
-  custom: { tone: "emerald", text: "CUSTOM", title: "Your own specification" },
-  empty: { tone: "gray", text: "EMPTY", title: "No specification yet" },
-} as const;
-
-/**
- * Specification workbench: template selector, length/validity strip, the PRD textarea,
- * run title and run controls. Renders exactly one Panel so App can place it directly.
- */
+/** Spec editor: one-click sample loaders, the PRD textarea, run title and run controls. */
 export function SpecEditor() {
   const spec = usePipelineStore((s) => s.spec);
   const setSpec = usePipelineStore((s) => s.setSpec);
@@ -31,20 +22,19 @@ export function SpecEditor() {
   const setTitle = usePipelineStore((s) => s.setTitle);
   const running = usePipelineStore((s) => s.running);
 
-  const [confirmReplace, setConfirmReplace] = useState(false);
-  useEscapeDismiss(() => setConfirmReplace(false));
+  const [pendingSample, setPendingSample] = useState<SampleSpec | null>(null);
+  useEscapeDismiss(() => setPendingSample(null));
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const stripId = useId();
 
-  const source = specSource(spec);
-  const chars = spec.length;
+  const activeSample = matchSample(spec);
+  const custom = isCustomSpec(spec);
   const trimmed = spec.trim().length;
   const remaining = Math.max(0, MIN_SPEC_CHARS - trimmed);
   const valid = remaining === 0;
-  const progress = Math.min(100, Math.round((trimmed / MIN_SPEC_CHARS) * 100));
 
   // Warn before the tab closes while a run is in flight or an unsaved custom spec is present.
-  const protectInput = running || source === "custom";
+  const protectInput = running || custom;
   useEffect(() => {
     if (!protectInput) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -56,94 +46,72 @@ export function SpecEditor() {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [protectInput]);
 
-  const focusEditor = () => textareaRef.current?.focus();
-
-  const selectSample = () => {
-    if (source === "sample") return;
-    if (source === "custom") {
-      setConfirmReplace(true);
+  const chooseSample = (sample: SampleSpec) => {
+    if (activeSample?.id === sample.id) return;
+    if (custom) {
+      setPendingSample(sample);
       return;
     }
-    loadSampleSpec();
+    loadSample(sample);
   };
-
-  const selectCustom = () => {
-    if (source === "sample") {
-      // The sample is one click away, so no confirm: clear the text and its title.
-      if (title === SAMPLE_SPEC_TITLE) clearSpec();
-      else setSpec("");
-    }
-    focusEditor();
-  };
-
-  const badge = SOURCE_BADGE[source];
 
   return (
     <Panel
-      title={
-        <span className="inline-flex items-center gap-2">
-          Specification
-          <Badge tone={badge.tone} mono size="xs" title={badge.title}>
-            {badge.text}
-          </Badge>
-        </span>
-      }
-      subtitle="PRD → test matrix"
+      title="Spec"
       icon={<FileText size={14} />}
       actions={
-        <Tabs label="Specification template">
-          <Tab active={source === "sample"} onClick={selectSample} disabled={running} title="Load the bundled Invoice Tracker PRD">
-            Sample · Invoice Tracker
-          </Tab>
-          <Tab active={source !== "sample"} onClick={selectCustom} disabled={running} title="Write or paste your own PRD">
-            Custom
-          </Tab>
-        </Tabs>
+        activeSample ? (
+          <Badge tone="cyan" title="A bundled sample spec is loaded">
+            Sample
+          </Badge>
+        ) : custom ? (
+          <Badge tone="emerald" title="Your own specification">
+            Your spec
+          </Badge>
+        ) : null
       }
     >
       <div className="space-y-3">
-        {confirmReplace && (
+        <div role="group" aria-label="Load a sample spec" className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 inline-flex items-center gap-1.5 text-xs text-fg-muted">
+            <Sparkles size={13} className="text-emerald-300" aria-hidden />
+            Try a sample
+          </span>
+          {SAMPLE_SPECS.map((sample) => {
+            const active = activeSample?.id === sample.id;
+            return (
+              <button
+                key={sample.id}
+                type="button"
+                aria-pressed={active}
+                disabled={running}
+                onClick={() => chooseSample(sample)}
+                title={`Load the ${sample.title} spec`}
+                className={clsx(
+                  "inline-flex h-7 items-center rounded-full border px-3 text-xs font-medium transition-colors duration-150",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 disabled:opacity-40",
+                  active
+                    ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-200"
+                    : "border-edge-strong text-fg-muted hover:border-emerald-500/40 hover:text-fg",
+                )}
+              >
+                {sample.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {pendingSample && (
           <InlineConfirm
-            question="Replace custom spec with the sample?"
+            question={`Replace your spec with the ${pendingSample.label} sample?`}
+            confirmLabel="Replace"
             onConfirm={() => {
-              loadSampleSpec();
-              setConfirmReplace(false);
+              loadSample(pendingSample);
+              setPendingSample(null);
             }}
-            onCancel={() => setConfirmReplace(false)}
+            onCancel={() => setPendingSample(null)}
           />
         )}
-
-        {/* Health strip: counts + validity toward MIN_SPEC_CHARS */}
-        <div id={stripId} className="tabular font-mono text-2xs text-fg-dim">
-          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-            <span>
-              {formatNumber(chars)} chars · {formatNumber(countLines(spec))} lines · ≈ {formatTokens(estimateTokens(chars))} tokens{" "}
-              <span className="text-fg-faint">(est.)</span>
-            </span>
-            {valid ? (
-              <Badge tone="emerald" dot mono size="xs" label="Specification is long enough to run">
-                READY
-              </Badge>
-            ) : (
-              <span className="text-amber-300">
-                {formatNumber(remaining)} more char{remaining === 1 ? "" : "s"} to run
-              </span>
-            )}
-          </div>
-          <div
-            role="progressbar"
-            aria-label="Minimum specification length"
-            aria-valuemin={0}
-            aria-valuemax={MIN_SPEC_CHARS}
-            aria-valuenow={Math.min(trimmed, MIN_SPEC_CHARS)}
-            className="mt-1.5 h-0.5 w-full overflow-hidden rounded-full bg-white/[0.06]"
-          >
-            <div
-              className={clsx("h-full transition-[width] duration-200 ease-out-soft", valid ? "bg-emerald-400/80" : "bg-amber-400/80")}
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
 
         <textarea
           ref={textareaRef}
@@ -153,11 +121,24 @@ export function SpecEditor() {
           spellCheck={false}
           aria-label="Product specification"
           aria-describedby={stripId}
-          className="field min-h-[360px] resize-y font-mono text-[12.5px] leading-relaxed"
+          className="field min-h-[320px] resize-y font-mono text-[12.5px] leading-relaxed lg:min-h-[400px]"
         />
 
+        <p id={stripId} className="tabular flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-fg-dim">
+          <span>
+            {formatNumber(spec.length)} characters · {formatNumber(countLines(spec))} lines
+          </span>
+          {valid ? (
+            <span className="text-emerald-300">Ready to generate</span>
+          ) : (
+            <span className="text-amber-300">
+              {formatNumber(remaining)} more character{remaining === 1 ? "" : "s"} needed
+            </span>
+          )}
+        </p>
+
         <label className="block">
-          <span className="mb-1 block font-mono text-2xs uppercase tracking-wider text-fg-dim">Run title</span>
+          <span className="mb-1 block text-xs text-fg-muted">Run title (optional)</span>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}

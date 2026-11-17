@@ -124,3 +124,47 @@ export function TestCaseRow({ tc, badge, open, onToggle, colSpan = TEST_CASE_ROW
     </>
   );
 }
+
+export interface TestCaseCardProps {
+  tc: TestCase;
+  open: boolean;
+  onToggle: () => void;
+}
+
+/** Single-column presentation of a test case for narrow screens. */
+export function TestCaseCard({ tc, open, onToggle }: TestCaseCardProps) {
+  const detailId = useId();
+  return (
+    <li className={clsx("rounded-panel border bg-black/20 transition-colors duration-150", open ? "border-emerald-500/35" : "border-edge")}>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={open ? detailId : undefined}
+        onClick={onToggle}
+        className="flex w-full items-start gap-2 rounded-panel p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-1.5">
+            <Badge tone={categoryTone(tc.category)}>{tc.category}</Badge>
+            <Badge tone={priorityTone(tc.priority)} mono>
+              {tc.priority}
+            </Badge>
+            <span className="font-mono text-[11px] text-fg-dim">{tc.id}</span>
+          </span>
+          <span className="mt-1.5 block text-13 font-medium text-fg">{tc.title}</span>
+        </span>
+        <ChevronRight size={15} aria-hidden className={clsx("mt-0.5 shrink-0 text-fg-dim transition-transform duration-150", open && "rotate-90 text-emerald-300")} />
+      </button>
+      {open && (
+        <dl id={detailId} className="space-y-2 border-t border-edge px-3 pb-3 pt-2.5 text-[12.5px] leading-relaxed">
+          {DETAIL_FIELDS.map((f) => (
+            <div key={f.key}>
+              <dt className={clsx("font-mono text-2xs uppercase tracking-wider", f.tone)}>{f.label}</dt>
+              <dd className={clsx("whitespace-pre-wrap break-words", f.key === "expectedResult" ? "text-fg-muted" : "text-fg")}>{tc[f.key]}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </li>
+  );
+}

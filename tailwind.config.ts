@@ -1,7 +1,7 @@
 import type { Config } from "tailwindcss";
 
 /**
- * SpecShield QA design tokens — "Cyber-Shield Command Center".
+ * SpecShield QA design tokens — the Cyber-Shield emerald palette (CSS variables live in src/index.css).
  *
  * Status colours intentionally map onto Tailwind's built-in palettes so components
  * can use e.g. `text-emerald-300` / `border-violet-500/40` directly:
@@ -18,14 +18,15 @@ export default {
       colors: {
         canvas: "#070A0F",
         surface: { DEFAULT: "#0D131F", 1: "#0D131F", 2: "#111927", 3: "#162033" },
-        edge: { DEFAULT: "rgba(255,255,255,0.08)", strong: "rgba(255,255,255,0.14)", faint: "rgba(255,255,255,0.05)" },
+        edge: { DEFAULT: "rgba(255,255,255,0.08)", strong: "rgba(255,255,255,0.16)", faint: "rgba(255,255,255,0.05)" },
         fg: { DEFAULT: "#E5E7EB", muted: "#9CA3AF", dim: "#6B7280", faint: "#4B5563" },
         // legacy alias kept so older class names keep compiling
         ink: "#070A0F",
       },
       fontFamily: {
-        sans: ["Inter", "ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Roboto", "sans-serif"],
-        mono: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
+        sans: ["Inter", "Inter Variable", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
+        mono: ["SF Mono", "Menlo", "Consolas", "Liberation Mono", "monospace"],
+        display: ["BubbledotICG-FinePos", "Geist Pixel Circle", "monospace"],
       },
       fontSize: {
         "2xs": ["10.5px", { lineHeight: "14px", letterSpacing: "0.02em" }],
@@ -44,12 +45,14 @@ export default {
       keyframes: {
         "status-pulse": { "0%, 100%": { opacity: "1" }, "50%": { opacity: "0.35" } },
         beam: { "0%": { transform: "translateX(-120%)" }, "100%": { transform: "translateX(260%)" } },
+        bob: { "0%, 100%": { transform: "translateY(0)" }, "50%": { transform: "translateY(6px)" } },
         shimmer: { "0%": { backgroundPosition: "-200% 0" }, "100%": { backgroundPosition: "200% 0" } },
         "fade-in": { "0%": { opacity: "0", transform: "translateY(2px)" }, "100%": { opacity: "1", transform: "translateY(0)" } },
       },
       animation: {
         "status-pulse": "status-pulse 2s ease-in-out infinite",
         beam: "beam 1.6s ease-in-out infinite",
+        bob: "bob 2.4s ease-in-out infinite",
         shimmer: "shimmer 2.4s linear infinite",
         "fade-in": "fade-in 180ms ease-out both",
       },

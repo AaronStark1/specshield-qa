@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { RunRecord, TelemetryStep } from "@shared/types.js";
 
-export type WorkspaceTab = "matrix" | "playwright" | "telemetry" | "history";
+export type WorkspaceTab = "matrix" | "playwright" | "history";
 export type HistoryStatus = "idle" | "loading" | "ready" | "error";
 
 interface PipelineState {
