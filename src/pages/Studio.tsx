@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { AmbientVideo } from "../components/layout/AmbientVideo.tsx";
 import { Header } from "../components/layout/Header.tsx";
 import { Footer } from "../components/layout/Footer.tsx";
+import { MetricsBar } from "../components/layout/MetricsBar.tsx";
 import { PrivacyBadge } from "../components/layout/PrivacyBadge.tsx";
 import { RoiCalculator } from "../components/layout/RoiCalculator.tsx";
 import { SpecEditor } from "../components/editor/SpecEditor.tsx";
@@ -51,6 +52,7 @@ export default function Studio() {
           <WorkspaceTabs />
         </section>
       </main>
+      <MetricsBar />
       <Footer />
     </div>
   );

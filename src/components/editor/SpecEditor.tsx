@@ -5,6 +5,7 @@ import { SAMPLE_SPECS, type SampleSpec } from "@shared/sampleSpec.ts";
 import { usePipelineStore } from "../../state/pipelineStore.ts";
 import { MIN_SPEC_CHARS } from "../../hooks/usePipeline.ts";
 import { countLines, formatNumber } from "../../lib/format.ts";
+import { SPEC_INPUT_ID, SPEC_PANEL_ID } from "../../lib/layout.ts";
 import { loadSample, matchSample } from "../../lib/samples.ts";
 import { Badge } from "../ui/Badge.tsx";
 import { Panel } from "../ui/Panel.tsx";
@@ -21,6 +22,7 @@ export function SpecEditor() {
   const title = usePipelineStore((s) => s.title);
   const setTitle = usePipelineStore((s) => s.setTitle);
   const running = usePipelineStore((s) => s.running);
+  const setFocusArea = usePipelineStore((s) => s.setFocusArea);
 
   const [pendingSample, setPendingSample] = useState<SampleSpec | null>(null);
   useEscapeDismiss(() => setPendingSample(null));
@@ -57,6 +59,7 @@ export function SpecEditor() {
 
   return (
     <Panel
+      id={SPEC_PANEL_ID}
       title="Spec"
       icon={<FileText size={14} />}
       actions={
@@ -115,8 +118,10 @@ export function SpecEditor() {
 
         <textarea
           ref={textareaRef}
+          id={SPEC_INPUT_ID}
           value={spec}
           onChange={(e) => setSpec(e.target.value)}
+          onFocus={() => setFocusArea("editor")}
           placeholder={PLACEHOLDER}
           spellCheck={false}
           aria-label="Product specification"

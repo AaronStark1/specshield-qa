@@ -1,4 +1,5 @@
 import { Reveal } from "./Reveal.tsx";
+import { SpotlightGroup } from "./Spotlight.tsx";
 
 function Route({ steps, blocked }: { steps: string[]; blocked?: boolean }) {
   return (
@@ -34,16 +35,16 @@ export function ProblemSection() {
         <Reveal>
           <p className="section-eyebrow">The problem</p>
           <h2 id="problem-title" className="section-title mt-4 max-w-[760px]">
-            The Cloud QA Dilemma
+            <span className="text-matrix-gradient">The Cloud QA Dilemma</span>
           </h2>
           <p className="mt-5 max-w-[620px] text-[16px] leading-relaxed text-[var(--text-muted)]">
             AI can draft a test suite in seconds. The catch is where the spec has to travel to get there.
           </p>
         </Reveal>
 
-        <div className="mt-12 grid gap-5 lg:grid-cols-2">
+        <SpotlightGroup className="mt-12 grid gap-5 lg:grid-cols-2">
           <Reveal className="min-w-0">
-            <article className="hairline-card h-full overflow-hidden p-7 md:p-9">
+            <article className="hairline-card spotlight-card h-full overflow-hidden p-7 md:p-9">
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-red-500/30 bg-red-500/10 text-red-300">
                   <i className="fa-solid fa-cloud-arrow-up" aria-hidden />
@@ -59,7 +60,7 @@ export function ProblemSection() {
           </Reveal>
 
           <Reveal delay={120} className="min-w-0">
-            <article className="relative h-full overflow-hidden rounded-[18px] border border-emerald-400/40 bg-gradient-to-br from-emerald-500 to-emerald-700 p-7 md:p-9">
+            <article className="spotlight-card spotlight-card-bright h-full overflow-hidden rounded-[18px] border border-emerald-400/40 bg-gradient-to-br from-emerald-500 to-emerald-700 p-7 md:p-9">
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/30 bg-black/20 text-white">
                   <i className="fa-solid fa-shield-halved" aria-hidden />
@@ -73,7 +74,7 @@ export function ProblemSection() {
               <Route steps={["Client PRD", "Your laptop", "Playwright suite"]} />
             </article>
           </Reveal>
-        </div>
+        </SpotlightGroup>
 
         <Reveal delay={160}>
           <ul className="mt-10 flex flex-wrap gap-x-8 gap-y-3 text-[13px] text-[var(--text-muted)]">

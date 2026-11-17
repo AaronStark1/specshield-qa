@@ -1,18 +1,17 @@
 import { useHealth } from "./useHealth.ts";
 
-export type EngineTone = "emerald" | "red" | "gray";
+export type EngineTone = "emerald" | "amber" | "red" | "gray";
 
 export interface EngineStatus {
   tone: EngineTone;
+  /** Which engine is answering, e.g. "Local Gemma 9B" or "Deterministic Engine". */
   label: string;
-  /** Which engine is answering, when the API is healthy: the local model or the deterministic one. */
-  engine: string | null;
+  /** The same in one or two words, for narrow headers. */
+  short: string;
   /** One plain sentence explaining the state and, where useful, how to change it. */
   detail: string;
   pulse: boolean;
 }
-
-const HEALTHY_LABEL = "Local Offline Engine";
 
 /** "gemma2:9b" → "Gemma 9B"; unknown shapes are returned unchanged. */
 export function friendlyModelName(model: string): string {
@@ -25,24 +24,19 @@ export function friendlyModelName(model: string): string {
 export function useEngineStatus(): EngineStatus {
   const { health, error } = useHealth();
   if (error) {
-    return { tone: "red", label: "Studio API Offline", engine: null, detail: "The local API is not answering. Start it with npm run dev.", pulse: false };
+    return { tone: "red", label: "Studio API Offline", short: "API Offline", detail: "The local API is not answering. Start it with npm run dev.", pulse: false };
   }
   if (!health) {
-    return { tone: "gray", label: "Checking Local Engine", engine: null, detail: "Waiting for the local API to report its status.", pulse: true };
+    return { tone: "gray", label: "Checking Engine", short: "Checking", detail: "Waiting for the local API to report its status.", pulse: true };
   }
   if (health.mode === "gemma") {
-    return {
-      tone: "emerald",
-      label: HEALTHY_LABEL,
-      engine: friendlyModelName(health.model),
-      detail: "Specs are processed by the model running on this machine.",
-      pulse: false,
-    };
+    const model = friendlyModelName(health.model);
+    return { tone: "emerald", label: `Local ${model}`, short: model, detail: "Specs are processed by the model running on this machine.", pulse: true };
   }
   const reason = health.forcedFallback
     ? "The built-in deterministic engine is switched on in this server's settings."
     : !health.ollamaReachable
       ? "Ollama is not running, so the built-in deterministic engine is used. Start Ollama to switch to local AI."
       : `${friendlyModelName(health.model)} is not installed in Ollama, so the built-in deterministic engine is used.`;
-  return { tone: "emerald", label: HEALTHY_LABEL, engine: "Deterministic", detail: reason, pulse: false };
+  return { tone: "amber", label: "Deterministic Engine", short: "Deterministic", detail: reason, pulse: true };
 }

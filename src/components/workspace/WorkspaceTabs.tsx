@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { clsx } from "clsx";
 import { FileCode, History, Table2 } from "lucide-react";
 import { usePipelineStore, type WorkspaceTab } from "../../state/pipelineStore.ts";
+import { OUTPUT_PANEL_ID } from "../../lib/layout.ts";
 import { Badge } from "../ui/Badge.tsx";
 import { Panel } from "../ui/Panel.tsx";
 import { Tabs, Tab } from "../ui/Tabs.tsx";
@@ -32,6 +33,7 @@ export function WorkspaceTabs() {
 
   return (
     <Panel
+      id={OUTPUT_PANEL_ID}
       flush
       title={
         <Tabs label="Output">

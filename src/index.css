@@ -1,5 +1,14 @@
 @import "@fontsource-variable/inter/wght.css";
 
+/* Bundled fallback for the display face, so the studio's numerals never need a third-party request. */
+@font-face {
+  font-family: "Geist Pixel Circle";
+  src: url("./assets/fonts/GeistPixel-Circle.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,23 +17,32 @@
 :root {
   color-scheme: dark;
   --bg-pure: #000000;
-  --bg-canvas: #070a0f;
-  --bg-surface: #0d131f;
-  --bg-surface-elevated: #111927;
-  --line: rgba(255, 255, 255, 0.08);
-  --line-strong: rgba(255, 255, 255, 0.16);
+  --bg-canvas: #05080c;
+  --bg-surface: rgba(10, 16, 26, 0.72);
+  --bg-surface-elevated: rgba(14, 22, 36, 0.85);
 
-  /* SpecShield Cyber-Shield emerald palette */
+  /* Cyber-Matrix emerald & mint palette */
   --accent: #10b981;
   --accent-light: #34d399;
-  --accent-glow: rgba(16, 185, 129, 0.4);
+  --accent-bright: #6ee7b7;
+  --accent-deep: #064e3b;
+  --accent-glow: 0 0 28px rgba(16, 185, 129, 0.45);
+  --accent-glow-intense: 0 0 45px rgba(16, 185, 129, 0.7);
   --cyan-subtle: #06b6d4;
   --amber-subtle: #f59e0b;
   --violet-subtle: #8b5cf6;
 
-  --text-primary: #ffffff;
-  --text-muted: #9ca3af;
-  --text-dim: #6b7280;
+  /* Borders & circuit linework */
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --line-glass: rgba(255, 255, 255, 0.08);
+  --line-matrix: rgba(16, 185, 129, 0.22);
+  --line-matrix-strong: rgba(52, 211, 153, 0.45);
+
+  --text-primary: #f0fdf4;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+  --text-matrix: #34d399;
 
   --font-sans: "Inter", "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "SF Mono", "Menlo", "Consolas", "Liberation Mono", monospace;
@@ -131,6 +149,274 @@ select:focus-visible {
     );
     mix-blend-mode: overlay;
   }
+  /* ── Cyber-Glass command bar (landing page and studio) ─────────────────── */
+  .cyber-bar {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    width: 100%;
+    max-width: var(--bar-max, 740px);
+    height: 48px;
+    align-items: center;
+    gap: 12px;
+    margin-inline: auto;
+    padding: 0 5px;
+    border: 1px solid var(--line-matrix);
+    border-radius: 9999px;
+    background: rgba(7, 12, 19, 0.82);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    box-shadow:
+      0 12px 32px -14px rgba(0, 0, 0, 0.9),
+      0 0 26px -10px rgba(16, 185, 129, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+  /* The beam: one short dash that travels the rim at constant speed, once every 1.8s. */
+  .cyber-bar-beam {
+    position: absolute;
+    inset: -1px;
+    z-index: 0;
+    width: calc(100% + 2px);
+    height: calc(100% + 2px);
+    overflow: visible;
+    pointer-events: none;
+  }
+  .cyber-bar-beam rect {
+    fill: none;
+    stroke: var(--accent-bright);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-dasharray: 0.09 0.91;
+    opacity: 0.85;
+    filter: drop-shadow(0 0 5px rgba(16, 185, 129, 0.95));
+    animation: cyber-beam 1.8s linear infinite;
+  }
+  /* Cursor spotlight: a soft mint light that follows the pointer along the bar. */
+  .cyber-bar-light {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: radial-gradient(150px circle at var(--mouse-x, 50%) 50%, rgba(52, 211, 153, 0.18), transparent 70%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 250ms ease;
+  }
+  .cyber-bar:hover .cyber-bar-light {
+    opacity: 1;
+  }
+
+  .cyber-brand {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 10px;
+    border-radius: 9999px;
+  }
+  .cyber-brand-mark {
+    position: relative;
+    display: inline-flex;
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--line-matrix-strong);
+    border-radius: 50%;
+    background: rgba(4, 12, 14, 0.9);
+    box-shadow: 0 0 14px rgba(16, 185, 129, 0.3);
+    transition: box-shadow 200ms ease;
+  }
+  .cyber-brand:hover .cyber-brand-mark {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.55);
+  }
+  /* Radar ping around the shield. */
+  .cyber-brand-mark::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border: 1px solid var(--accent-light);
+    border-radius: inherit;
+    opacity: 0;
+    pointer-events: none;
+    animation: radar-ping 2.6s ease-out infinite;
+  }
+  .cyber-brand-word {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding-right: 4px;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.08em;
+    color: var(--text-primary);
+  }
+  .cyber-brand-tag {
+    padding: 3px 5px;
+    border: 1px solid var(--line-matrix-strong);
+    border-radius: 5px;
+    background: rgba(16, 185, 129, 0.14);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: var(--accent-bright);
+  }
+
+  .cyber-nav {
+    position: relative;
+    display: flex;
+    height: 36px;
+    min-width: 0;
+    align-items: stretch;
+    gap: 2px;
+  }
+  .cyber-nav-item {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 13px;
+    border-radius: 9999px;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--text-muted);
+    transition:
+      color 150ms ease,
+      transform 150ms ease;
+  }
+  .cyber-nav-item:hover {
+    color: var(--accent-light);
+    transform: translateY(-1px);
+  }
+  .cyber-nav-item.is-active {
+    color: var(--text-primary);
+  }
+  .cyber-nav-item.is-active svg {
+    color: var(--accent-light);
+  }
+  /* The illuminated mint pill that slides behind the active item, with its beacon dot below the label. */
+  .cyber-nav-pill {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    border: 1px solid rgba(52, 211, 153, 0.4);
+    border-radius: 9999px;
+    background: rgba(16, 185, 129, 0.16);
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.25);
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      transform 380ms cubic-bezier(0.22, 1, 0.36, 1),
+      width 380ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 200ms ease;
+  }
+  .cyber-nav-pill.is-visible {
+    opacity: 1;
+  }
+  .cyber-nav-pill::after {
+    content: "";
+    position: absolute;
+    bottom: 3px;
+    left: calc(50% - 1.5px);
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--accent-bright);
+    box-shadow: 0 0 6px 1px rgba(52, 211, 153, 0.9);
+  }
+
+  .cyber-beacon {
+    display: inline-flex;
+    height: 36px;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    padding: 0 13px;
+    border: 1px solid var(--line-glass);
+    border-radius: 9999px;
+    background: #0b131e;
+    font-size: 12.5px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    color: #cbd5e1;
+  }
+  .cyber-beacon-dot {
+    position: relative;
+    width: 7px;
+    height: 7px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 8px currentColor;
+  }
+  .cyber-beacon-dot.is-live::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border: 1px solid currentColor;
+    border-radius: inherit;
+    opacity: 0;
+    animation: radar-ping 2s ease-out infinite;
+  }
+
+  /* ── Luminous Matrix Pill: the primary call to action ──────────────────── */
+  .cta-matrix {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 28px;
+    border-radius: 9999px;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    box-shadow:
+      0 0 0 1px rgba(52, 211, 153, 0.4),
+      0 0 30px rgba(16, 185, 129, 0.55),
+      0 0 60px rgba(16, 185, 129, 0.2);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 20px;
+    white-space: nowrap;
+    color: #022c22;
+    transition:
+      transform 200ms ease,
+      filter 200ms ease,
+      box-shadow 200ms ease,
+      opacity 200ms ease;
+  }
+  .cta-matrix:hover {
+    transform: translateY(-2px) scale(1.02);
+    filter: brightness(1.1);
+  }
+  .cta-matrix:active {
+    transform: none;
+  }
+  .cta-matrix:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+    box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.25);
+    filter: saturate(0.6);
+    transform: none;
+  }
+  /* Inside the command bar: same pill, a softer aura. */
+  .cta-matrix-compact {
+    height: 36px;
+    padding: 0 16px;
+    box-shadow:
+      0 0 0 1px rgba(52, 211, 153, 0.4),
+      0 0 18px rgba(16, 185, 129, 0.45);
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .cta-matrix-compact:hover {
+    transform: translateY(-1px);
+  }
+
   /* thin animated beam for active pipeline connectors */
   .beam-track {
     @apply relative overflow-hidden;
@@ -145,7 +431,39 @@ select:focus-visible {
   }
 }
 
-/* ── Studio ambient backdrop ────────────────────────────────────────────── */
+@keyframes cyber-beam {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes radar-ping {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.9;
+  }
+  70%,
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+
+/* ── Ambient video backdrop (studio and landing hero) ───────────────────── */
+.bg-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  z-index: 0;
+  filter: saturate(1.2) hue-rotate(85deg) brightness(1.05) contrast(1.25);
+}
+
+/* Studio: black, then canvas, then the footage in bioluminescent emerald, then a light obsidian veil. */
 .studio-ambient {
   position: fixed;
   inset: 0;
@@ -154,43 +472,126 @@ select:focus-visible {
   pointer-events: none;
   background: var(--bg-canvas);
 }
-/*
- * Cyber-emerald grade. The filter chain from the design spec leaves the footage nearly grey, so an
- * emerald layer in "color" blend mode supplies the hue while the footage keeps its own luminance.
- * The frame is pushed down so its bright band sits below the header, where the veil is thinner.
- */
-.bg-video {
-  position: absolute;
-  inset: 16% 0 auto 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center top;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.18;
-  filter: saturate(0.2) hue-rotate(95deg) brightness(0.65) contrast(1.2);
+/* The frame sits a little low so the footage's bright band crosses the middle of the workspace. */
+.studio-ambient .bg-video {
+  inset: 10% 0 auto 0;
+  opacity: 0.42;
   mix-blend-mode: screen;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 16%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 16%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 14%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 14%);
 }
+/*
+ * Hue lock. The filter chain alone turns this footage olive, brown and pink, so an emerald layer in
+ * "color" blend mode sets every pixel's hue while the footage keeps its own light and motion.
+ */
 .studio-ambient-tint {
   position: absolute;
   inset: 0;
   background: var(--accent);
   mix-blend-mode: color;
-  opacity: 0.6;
+  opacity: 0.9;
+  pointer-events: none;
 }
-/* Obsidian veil: 85% canvas at the top, fading down so the footage breathes below the header. */
+/* Lighter obsidian veil, with the luminous bloom from the upper right laid over it. */
 .studio-ambient-veil {
   position: absolute;
   inset: 0;
-  background: linear-gradient(to bottom, rgba(7, 10, 15, 0.85) 0%, rgba(7, 10, 15, 0.4) 34%, rgba(7, 10, 15, 0.2) 100%);
+  background:
+    radial-gradient(circle at 60% 30%, rgba(16, 185, 129, 0.25) 0%, rgba(5, 150, 105, 0.08) 50%, transparent 80%),
+    linear-gradient(to bottom, rgba(5, 8, 12, 0.75) 0%, rgba(5, 8, 12, 0.35) 45%, rgba(5, 8, 12, 0.65) 100%);
+  pointer-events: none;
 }
-.studio-shell .panel {
-  background-color: rgba(13, 19, 31, 0.84);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+
+/*
+ * Landing hero: the same footage, screened over the particle field. The wrapper is its own
+ * stacking context, so the blend and the opacity sit on it and the video inside is opaque.
+ */
+.hero-ambient {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 0;
+  height: 100vh;
+  height: 100svh;
+  min-height: 600px;
+  overflow: hidden;
+  pointer-events: none;
+  background: #000;
+  opacity: 0.22;
+  mix-blend-mode: screen;
+  -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
+}
+.hero-ambient::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  mix-blend-mode: color;
+  opacity: 0.9;
+}
+
+/* ── Studio surfaces ────────────────────────────────────────────────────── */
+/* Frosted glass slates floating over the footage, with an emerald rim that brightens under the cursor. */
+.studio-shell .panel,
+.studio-panel {
+  background-color: rgba(8, 14, 22, 0.68);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(16, 185, 129, 0.16);
+  border-radius: 14px;
+  box-shadow:
+    0 16px 45px -12px rgba(0, 0, 0, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition:
+    border-color 200ms ease,
+    box-shadow 200ms ease;
+}
+.studio-shell .panel:hover,
+.studio-panel:hover {
+  border-color: rgba(52, 211, 153, 0.35);
+  box-shadow:
+    0 16px 45px -10px rgba(0, 0, 0, 0.8),
+    0 0 20px rgba(16, 185, 129, 0.12);
+}
+/* A panel reporting a problem keeps its amber rim. */
+.studio-shell .panel.panel-warn,
+.studio-shell .panel.panel-warn:hover {
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+/* The floating header rests on a scrim that blurs and darkens whatever scrolls beneath it. */
+.studio-header {
+  position: relative;
+  z-index: 40;
+}
+.studio-header::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 -20px 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(5, 8, 12, 0.88) 0%, rgba(5, 8, 12, 0.55) 62%, rgba(5, 8, 12, 0) 100%);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 58%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 58%, transparent 100%);
+}
+@media (min-width: 768px) {
+  .studio-header {
+    position: sticky;
+    top: 0;
+  }
+}
+
+/* Metric numerals: the display face, glowing in matrix green. */
+.metric-value {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-synthesis: none;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--text-matrix);
+  text-shadow: 0 0 18px rgba(16, 185, 129, 0.5);
 }
 
 /* ── Reduced motion ─────────────────────────────────────────────────────── */
@@ -205,7 +606,10 @@ select:focus-visible {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-  .beam-track::after {
+  .beam-track::after,
+  .cyber-bar-beam,
+  .cyber-brand-mark::after,
+  .cyber-beacon-dot::after {
     display: none;
   }
 }

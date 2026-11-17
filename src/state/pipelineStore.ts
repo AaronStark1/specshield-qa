@@ -2,6 +2,8 @@ import { create } from "zustand";
 import type { RunRecord, TelemetryStep } from "@shared/types.js";
 
 export type WorkspaceTab = "matrix" | "playwright" | "history";
+/** Which half of the studio the user is working in; drives the active item of the header navigation. */
+export type FocusArea = "editor" | "output" | "privacy";
 export type HistoryStatus = "idle" | "loading" | "ready" | "error";
 
 interface PipelineState {
@@ -18,6 +20,7 @@ interface PipelineState {
   historyStatus: HistoryStatus;
   historyError: string | null;
   activeTab: WorkspaceTab;
+  focusArea: FocusArea;
   hourlyRate: number;
   minutesPerTest: number;
   /** Illustrative cloud comparison rates (USD per million tokens) — editable assumptions, not live prices. */
@@ -34,7 +37,9 @@ interface PipelineState {
   setSteps: (s: TelemetryStep[]) => void;
   setHistory: (h: RunRecord[]) => void;
   setHistoryStatus: (s: HistoryStatus, error?: string | null) => void;
+  /** Selects an output tab; the output becomes the focused area. */
   setActiveTab: (t: WorkspaceTab) => void;
+  setFocusArea: (a: FocusArea) => void;
   setHourlyRate: (n: number) => void;
   setMinutesPerTest: (n: number) => void;
   setCloudRates: (input: number, output: number) => void;
@@ -53,6 +58,7 @@ export const usePipelineStore = create<PipelineState>((set) => ({
   historyStatus: "idle",
   historyError: null,
   activeTab: "matrix",
+  focusArea: "editor",
   hourlyRate: 85,
   minutesPerTest: 12,
   cloudInputUsdPerMTok: 3,
@@ -67,7 +73,8 @@ export const usePipelineStore = create<PipelineState>((set) => ({
   setSteps: (steps) => set({ steps }),
   setHistory: (history) => set({ history }),
   setHistoryStatus: (historyStatus, historyError = null) => set({ historyStatus, historyError }),
-  setActiveTab: (activeTab) => set({ activeTab }),
+  setActiveTab: (activeTab) => set({ activeTab, focusArea: "output" }),
+  setFocusArea: (focusArea) => set({ focusArea }),
   setHourlyRate: (hourlyRate) => set({ hourlyRate }),
   setMinutesPerTest: (minutesPerTest) => set({ minutesPerTest }),
   setCloudRates: (cloudInputUsdPerMTok, cloudOutputUsdPerMTok) => set({ cloudInputUsdPerMTok, cloudOutputUsdPerMTok }),

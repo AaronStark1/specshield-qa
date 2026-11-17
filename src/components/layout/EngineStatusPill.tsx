@@ -1,27 +1,29 @@
 import { clsx } from "clsx";
 import { useEngineStatus, type EngineTone } from "../../hooks/useEngineStatus.ts";
 
-const TONE: Record<EngineTone, string> = {
-  emerald: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-  red: "border-red-500/30 bg-red-500/10 text-red-300",
-  gray: "border-white/10 bg-white/[0.04] text-fg-muted",
+const DOT: Record<EngineTone, string> = {
+  emerald: "text-emerald-400",
+  amber: "text-amber-400",
+  red: "text-red-400",
+  gray: "text-gray-400",
 };
 
 /**
- * The single engine indicator: "Local Offline Engine", followed by which engine is answering
- * (the local Gemma model or the built-in deterministic one). Turns red when the API is down.
+ * The engine beacon: a dark-glass pill naming which engine is answering, with a live dot that is
+ * green for the local Gemma model, amber for the built-in deterministic engine and red when the
+ * API is down. Both engines run on this machine, hence "Offline".
  */
 export function EngineStatusPill({ className }: { className?: string }) {
   const status = useEngineStatus();
+  const local = status.tone === "emerald" || status.tone === "amber";
   return (
-    <span
-      role="status"
-      title={status.detail}
-      className={clsx("inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium", TONE[status.tone], className)}
-    >
-      <span aria-hidden className={clsx("status-dot", status.pulse && "animate-status-pulse")} />
-      <span className="truncate">{status.label}</span>
-      {status.engine && <span className="hidden truncate font-normal text-fg-muted sm:inline">· {status.engine}</span>}
+    <span role="status" title={status.detail} className={clsx("cyber-beacon", className)}>
+      <span aria-hidden className={clsx("cyber-beacon-dot", DOT[status.tone], status.pulse && "is-live")} />
+      <span className="truncate lg:hidden">{status.short}</span>
+      <span className="hidden truncate lg:inline">
+        {status.label}
+        {local && " · Offline"}
+      </span>
     </span>
   );
 }

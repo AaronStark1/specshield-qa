@@ -5,6 +5,7 @@ import "@fortawesome/fontawesome-free/css/fontawesome.min.css";
 import "@fortawesome/fontawesome-free/css/solid.min.css";
 import "@fortawesome/fontawesome-free/css/brands.min.css";
 import "../landing/landing.css";
+import { AmbientVideo } from "../components/layout/AmbientVideo.tsx";
 import { Hero } from "../landing/Hero.tsx";
 import { LandingFooter } from "../landing/LandingFooter.tsx";
 import { LandingHeader } from "../landing/LandingHeader.tsx";
@@ -46,8 +47,9 @@ export default function Landing() {
   }, []);
 
   return (
-    <div className="landing min-h-screen">
+    <div className="landing relative min-h-screen">
       <ShieldCanvas shape={shape} onParticleCount={setParticleCount} />
+      <AmbientVideo variant="hero" />
       <LandingHeader activeSection={activeSection} />
       <main className="relative z-[1]">
         <Hero ctaRef={heroCtaRef} particleCount={particleCount} shape={shape} onSelectShape={setHeroShape} />
@@ -73,7 +75,7 @@ export default function Landing() {
         <Link
           to={`/studio?sample=${DEFAULT_SAMPLE_ID}`}
           tabIndex={heroCtaVisible ? -1 : 0}
-          className="cta-glow flex h-12 items-center justify-center gap-2 rounded-full bg-[var(--accent)] text-[15px] font-semibold text-emerald-950"
+          className="cta-matrix flex h-12"
         >
           Try the sample spec
           <ArrowRight size={16} aria-hidden />

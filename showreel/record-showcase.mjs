@@ -106,9 +106,10 @@ const CLIPS = {
     },
     async perform(page) {
       await pause(600);
-      await click(page, page.getByRole("button", { name: /^Boundary/ }), { settle: 1000 });
-      await click(page, page.getByRole("button", { name: /^Security/ }), { settle: 1000 });
-      await click(page, page.getByRole("button", { name: /^P0/ }), { settle: 900 });
+      const matrix = page.locator("#panel-matrix");
+      await click(page, matrix.getByRole("button", { name: /^Boundary/ }), { settle: 1000 });
+      await click(page, matrix.getByRole("button", { name: /^Security/ }), { settle: 1000 });
+      await click(page, matrix.getByRole("button", { name: /^P0/ }), { settle: 900 });
       const search = page.getByPlaceholder("Search test cases…");
       await click(page, search, { settle: 200 });
       await search.pressSequentially("token", { delay: 110 });

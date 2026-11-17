@@ -11,14 +11,14 @@ export function LandingFooter() {
         <Reveal>
           <ShieldMark size={44} className="mx-auto" />
           <h2 className="font-display mx-auto mt-6 max-w-[720px] text-[clamp(26px,4.4vw,48px)] uppercase leading-[1.08] text-white">
-            Keep the spec. Ship the suite.
+            <span className="text-matrix-gradient">Keep the spec. Ship the suite.</span>
           </h2>
           <p className="mx-auto mt-5 max-w-[480px] text-[16px] leading-relaxed text-[var(--text-muted)]">
             Open the studio, load the Invoice Tracker demo and watch a full Playwright suite appear without a single cloud call.
           </p>
           <Link
             to="/studio"
-            className="cta-glow mt-9 inline-flex h-12 items-center gap-2 rounded-full bg-[var(--accent)] px-6 text-[15px] font-semibold text-emerald-950 hover:bg-[var(--accent-light)]"
+            className="cta-matrix mt-9"
           >
             Start Generating Free
             <ArrowRight size={16} aria-hidden />

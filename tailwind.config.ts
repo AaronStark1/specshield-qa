@@ -16,12 +16,12 @@ export default {
   theme: {
     extend: {
       colors: {
-        canvas: "#070A0F",
+        canvas: "#05080C",
         surface: { DEFAULT: "#0D131F", 1: "#0D131F", 2: "#111927", 3: "#162033" },
         edge: { DEFAULT: "rgba(255,255,255,0.08)", strong: "rgba(255,255,255,0.16)", faint: "rgba(255,255,255,0.05)" },
-        fg: { DEFAULT: "#E5E7EB", muted: "#9CA3AF", dim: "#6B7280", faint: "#4B5563" },
+        fg: { DEFAULT: "#E5E7EB", muted: "#94A3B8", dim: "#64748B", faint: "#475569" },
         // legacy alias kept so older class names keep compiling
-        ink: "#070A0F",
+        ink: "#05080C",
       },
       fontFamily: {
         sans: ["Inter", "Inter Variable", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],

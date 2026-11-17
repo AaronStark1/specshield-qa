@@ -153,7 +153,7 @@ export function WorkflowSection() {
         <Reveal>
           <p className="section-eyebrow">How it works</p>
           <h2 id="workflow-title" className="section-title mt-4 max-w-[760px]">
-            From spec to test suite in three steps
+            <span className="text-matrix-gradient">From spec to test suite in three steps</span>
           </h2>
         </Reveal>
 

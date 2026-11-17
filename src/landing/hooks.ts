@@ -1,21 +1,6 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 
-/** Live `matchMedia` result. */
-export function useMediaQuery(query: string): boolean {
-  return useSyncExternalStore(
-    (onChange) => {
-      const list = window.matchMedia(query);
-      list.addEventListener("change", onChange);
-      return () => list.removeEventListener("change", onChange);
-    },
-    () => window.matchMedia(query).matches,
-    () => false,
-  );
-}
-
-export function usePrefersReducedMotion(): boolean {
-  return useMediaQuery("(prefers-reduced-motion: reduce)");
-}
+export { useMediaQuery, usePrefersReducedMotion } from "../hooks/useMediaQuery.ts";
 
 /** True while the referenced element intersects the viewport. */
 export function useInView<T extends Element>(ref: RefObject<T | null>, options?: { threshold?: number; rootMargin?: string; once?: boolean }): boolean {

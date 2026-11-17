@@ -79,7 +79,7 @@ export function ShowcaseSection() {
         <Reveal>
           <p className="section-eyebrow">See it run</p>
           <h2 id="showcase-title" className="section-title mt-4 max-w-[760px]">
-            The whole studio, on your machine
+            <span className="text-matrix-gradient">The whole studio, on your machine</span>
           </h2>
           <p className="mt-5 max-w-[620px] text-[16px] leading-relaxed text-[var(--text-muted)]">
             Every clip below is the real app running against its offline engine. No staging server, no cloud account.

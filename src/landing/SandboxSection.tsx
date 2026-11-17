@@ -13,6 +13,7 @@ import { CATEGORIES, categoryCounts } from "../lib/runs.ts";
 import { DEFAULT_SAMPLE_ID } from "../lib/samples.ts";
 import { createZip } from "../lib/zip.ts";
 import { Reveal } from "./Reveal.tsx";
+import { SpotlightGroup } from "./Spotlight.tsx";
 import { Window } from "./Window.tsx";
 import { useInView } from "./hooks.ts";
 
@@ -234,7 +235,7 @@ export function SandboxSection() {
         <Reveal>
           <p className="section-eyebrow">Before / after</p>
           <h2 id="sandbox-title" className="section-title mt-4 max-w-[760px]">
-            Try the engine without leaving this page
+            <span className="text-matrix-gradient">Try the engine without leaving this page</span>
           </h2>
           <p className="mt-5 max-w-[640px] text-[16px] leading-relaxed text-[var(--text-muted)]">
             One spec in, a filterable matrix and a Playwright suite out. This is the actual output for the bundled Invoice Tracker spec.
@@ -242,42 +243,46 @@ export function SandboxSection() {
         </Reveal>
 
         <Reveal delay={100} className="mt-12">
-          <Window title="specshield · studio preview">
-            <div role="tablist" aria-label="Studio preview" className="flex gap-1 overflow-x-auto border-b border-white/[0.08] px-3 pt-3">
-              {TABS.map((item) => {
-                const active = tab === item.id;
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    role="tab"
-                    id={`sandbox-tab-${item.id}`}
-                    aria-selected={active}
-                    aria-controls="sandbox-panel"
-                    onClick={() => setTab(item.id)}
-                    className={clsx(
-                      "relative inline-flex h-10 shrink-0 items-center gap-2 rounded-t-lg px-4 text-[13px] font-medium transition-colors duration-150",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60",
-                      active ? "bg-white/[0.06] text-white" : "text-[var(--text-muted)] hover:text-white",
-                    )}
-                  >
-                    <Icon size={14} className={active ? "text-[var(--accent-light)]" : undefined} aria-hidden />
-                    <span className="hidden sm:inline">{item.label}</span>
-                    <span className="sm:hidden">{item.short}</span>
-                    {active && <span aria-hidden className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-[var(--accent)]" />}
-                  </button>
-                );
-              })}
-            </div>
+          <SpotlightGroup>
+            <div className="spotlight-card rounded-[14px]">
+              <Window title="specshield · studio preview" className="window-terminal">
+                <div role="tablist" aria-label="Studio preview" className="flex gap-1 overflow-x-auto border-b border-white/[0.08] px-3 pt-3">
+                  {TABS.map((item) => {
+                    const active = tab === item.id;
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        role="tab"
+                        id={`sandbox-tab-${item.id}`}
+                        aria-selected={active}
+                        aria-controls="sandbox-panel"
+                        onClick={() => setTab(item.id)}
+                        className={clsx(
+                          "relative inline-flex h-10 shrink-0 items-center gap-2 rounded-t-lg px-4 text-[13px] font-medium transition-colors duration-150",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60",
+                          active ? "bg-white/[0.06] text-white" : "text-[var(--text-muted)] hover:text-white",
+                        )}
+                      >
+                        <Icon size={14} className={active ? "text-[var(--accent-light)]" : undefined} aria-hidden />
+                        <span className="hidden sm:inline">{item.label}</span>
+                        <span className="sm:hidden">{item.short}</span>
+                        {active && <span aria-hidden className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-[var(--accent)]" />}
+                      </button>
+                    );
+                  })}
+                </div>
 
-            <div role="tabpanel" id="sandbox-panel" aria-labelledby={`sandbox-tab-${tab}`} className="min-h-[500px]">
-              {tab === "prd" && <PrdPanel />}
-              {tab !== "prd" && !suite && <p className="p-5 font-mono text-xs text-[var(--text-dim)]">Loading the demo suite…</p>}
-              {tab === "matrix" && suite && <MatrixPanel cases={suite.testCases} />}
-              {tab === "code" && suite && <CodePanel suite={suite} />}
+                <div role="tabpanel" id="sandbox-panel" aria-labelledby={`sandbox-tab-${tab}`} className="min-h-[500px]">
+                  {tab === "prd" && <PrdPanel />}
+                  {tab !== "prd" && !suite && <p className="p-5 font-mono text-xs text-[var(--text-dim)]">Loading the demo suite…</p>}
+                  {tab === "matrix" && suite && <MatrixPanel cases={suite.testCases} />}
+                  {tab === "code" && suite && <CodePanel suite={suite} />}
+                </div>
+              </Window>
             </div>
-          </Window>
+          </SpotlightGroup>
         </Reveal>
 
         <Reveal delay={160}>

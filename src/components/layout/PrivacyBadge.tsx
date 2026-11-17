@@ -2,6 +2,7 @@ import { clsx } from "clsx";
 import { Lock, TriangleAlert } from "lucide-react";
 import { useHealth } from "../../hooks/useHealth.ts";
 import { useOutboundAudit } from "../../hooks/useOutboundAudit.ts";
+import { PRIVACY_PANEL_ID } from "../../lib/layout.ts";
 
 interface Fact {
   value: string;
@@ -30,8 +31,9 @@ export function PrivacyBadge() {
 
   return (
     <section
+      id={PRIVACY_PANEL_ID}
       aria-label="Privacy"
-      className={clsx("panel min-w-0 px-4 py-3", warn ? "border-amber-500/30" : "border-emerald-500/25 bg-gradient-to-br from-emerald-500/[0.07] to-transparent")}
+      className={clsx("panel min-w-0 px-4 py-3", warn ? "panel-warn" : "bg-gradient-to-br from-emerald-500/[0.07] to-transparent")}
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <h2 className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight text-fg">
