@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { AmbientVideo } from "../components/layout/AmbientVideo.tsx";
 import { Header } from "../components/layout/Header.tsx";
 import { Footer } from "../components/layout/Footer.tsx";
 import { PrivacyBadge } from "../components/layout/PrivacyBadge.tsx";
@@ -36,9 +37,10 @@ export default function Studio() {
   }, []);
 
   return (
-    <div className="flex min-h-screen flex-col text-fg">
+    <div className="studio-shell relative isolate flex min-h-screen flex-col text-fg">
+      <AmbientVideo />
       <Header />
-      <main className={`${CONTAINER} grid flex-1 content-start gap-4 py-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]`}>
+      <main className={`${CONTAINER} relative z-[1] grid flex-1 content-start gap-4 py-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]`}>
         <section aria-label="Specification" className="flex min-w-0 flex-col gap-4">
           <SpecEditor />
           <PrivacyBadge />

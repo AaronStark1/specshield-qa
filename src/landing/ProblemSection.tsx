@@ -28,7 +28,8 @@ function Route({ steps, blocked }: { steps: string[]; blocked?: boolean }) {
 /** Section 1 — why pasting client specs into a cloud model is the problem SpecShield removes. */
 export function ProblemSection() {
   return (
-    <section id="problem" className="relative scroll-mt-20 border-t border-white/[0.06] bg-black py-24 md:py-32" aria-labelledby="problem-title">
+    <section id="problem" className="landing-section" aria-labelledby="problem-title">
+      <div className="ambient-bloom -left-40 top-10" aria-hidden />
       <div className="landing-container">
         <Reveal>
           <p className="section-eyebrow">The problem</p>

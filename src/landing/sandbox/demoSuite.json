@@ -1,0 +1,514 @@
+{
+  "title": "Freelancer Invoice Tracker",
+  "testCases": [
+    {
+      "id": "FIT-FUNC-001",
+      "featureId": "FR-AUTH",
+      "category": "Functional",
+      "title": "Freelancer signs up with valid email and password",
+      "given": "a new freelancer on the signup screen",
+      "when": "they provide alex@freelance.dev and Str0ngPass99 with digits",
+      "then": "the account is created and the user is authenticated",
+      "priority": "P0",
+      "expectedResult": "Account created and dashboard accessible",
+      "tags": [
+        "functional",
+        "auth",
+        "signup"
+      ]
+    },
+    {
+      "id": "FIT-FUNC-002",
+      "featureId": "FR-CLI",
+      "category": "Functional",
+      "title": "Freelancer creates client with name, email and USD currency",
+      "given": "an authenticated freelancer on the clients screen",
+      "when": "they add Acme Corp with email billing@acme.com and currency USD",
+      "then": "the client is saved and appears in the client selector",
+      "priority": "P0",
+      "expectedResult": "Client saved with currency USD",
+      "tags": [
+        "functional",
+        "clients"
+      ]
+    },
+    {
+      "id": "FIT-FUNC-003",
+      "featureId": "FR-INV",
+      "category": "Functional",
+      "title": "Freelancer creates invoice with 2 items and computed total",
+      "given": "an existing client Acme Corp",
+      "when": "they add 2 items (Design 10h @ $100.00 and QA 5h @ $80.00)",
+      "then": "total computes to $1,400.00 and invoice number INV-2026-0001 is generated",
+      "priority": "P0",
+      "expectedResult": "Invoice created in Draft status with total 1400.00",
+      "tags": [
+        "functional",
+        "invoices",
+        "calculation"
+      ]
+    },
+    {
+      "id": "FIT-FUNC-004",
+      "featureId": "FR-INV",
+      "category": "Functional",
+      "title": "Sending invoice generates public link with 32-char token",
+      "given": "a Draft invoice INV-2026-0001",
+      "when": "the freelancer clicks Send Invoice",
+      "then": "status becomes Sent and an email is queued with an unguessable 32-char public link",
+      "priority": "P0",
+      "expectedResult": "Invoice status Sent; 32-char public token generated",
+      "tags": [
+        "functional",
+        "invoices",
+        "send"
+      ]
+    },
+    {
+      "id": "FIT-FUNC-005",
+      "featureId": "FR-PAY",
+      "category": "Functional",
+      "title": "Client clicks Payment Sent on public link",
+      "given": "a client viewing invoice INV-2026-0001 via public link",
+      "when": "they click Payment Sent",
+      "then": "the freelancer is notified and the invoice status remains Sent",
+      "priority": "P1",
+      "expectedResult": "Freelancer notified; status remains Sent",
+      "tags": [
+        "functional",
+        "payments",
+        "public-link"
+      ]
+    },
+    {
+      "id": "FIT-FUNC-006",
+      "featureId": "FR-PAY",
+      "category": "Functional",
+      "title": "Recording partial payment reduces balance",
+      "given": "a Sent invoice with total $1,400.00",
+      "when": "the freelancer records a partial payment of $600.00",
+      "then": "status remains Sent with outstanding balance $800.00",
+      "priority": "P0",
+      "expectedResult": "Remaining balance updated to 800.00",
+      "tags": [
+        "functional",
+        "payments",
+        "partial"
+      ]
+    },
+    {
+      "id": "FIT-FUNC-007",
+      "featureId": "FR-PAY",
+      "category": "Functional",
+      "title": "Sum of payments equaling total flips status to Paid",
+      "given": "an invoice with $800.00 outstanding balance",
+      "when": "the freelancer records a second payment of $800.00",
+      "then": "total payments equal $1,400.00 and status flips to Paid automatically",
+      "priority": "P0",
+      "expectedResult": "Status flips to Paid; outstanding balance 0.00",
+      "tags": [
+        "functional",
+        "payments",
+        "paid"
+      ]
+    },
+    {
+      "id": "FIT-FUNC-008",
+      "featureId": "FR-PAY",
+      "category": "Functional",
+      "title": "Unpaid invoice 1 day after due date becomes Overdue",
+      "given": "an invoice unpaid at due date + 1 day",
+      "when": "the overnight reminder job executes",
+      "then": "status flips to Overdue and reminder email is queued for +1 day",
+      "priority": "P0",
+      "expectedResult": "Status becomes Overdue; reminders scheduled at +1, +7, +14 days",
+      "tags": [
+        "functional",
+        "reminders",
+        "overdue"
+      ]
+    },
+    {
+      "id": "FIT-FUNC-009",
+      "featureId": "FR-EXP",
+      "category": "Functional",
+      "title": "Accountant exports invoices for 6-month range as CSV",
+      "given": "an authenticated Accountant user",
+      "when": "they request a CSV export for Jan 1 to Jun 30",
+      "then": "a CSV file downloads containing all invoices in that date range",
+      "priority": "P1",
+      "expectedResult": "CSV downloaded with invoice records and totals",
+      "tags": [
+        "functional",
+        "export",
+        "csv"
+      ]
+    },
+    {
+      "id": "FIT-FUNC-010",
+      "featureId": "FR-INV",
+      "category": "Functional",
+      "title": "Sequential invoice numbering never reuses cancelled number",
+      "given": "invoice INV-2026-0002 cancelled by the freelancer",
+      "when": "they create the next invoice",
+      "then": "the new invoice is assigned INV-2026-0003 and 0002 is never reused",
+      "priority": "P1",
+      "expectedResult": "Next number INV-2026-0003 generated sequentially",
+      "tags": [
+        "functional",
+        "invoices",
+        "sequence"
+      ]
+    },
+    {
+      "id": "FIT-BND-001",
+      "featureId": "FR-AUTH",
+      "category": "Boundary",
+      "title": "Password boundary 7/8 and 64/65 characters",
+      "given": "the freelancer registration form",
+      "when": "testing 7 chars (Passw1!), 8 chars (Passw0rd), 64 chars, and 65 chars",
+      "then": "7 and 65 are rejected; 8 and 64 are accepted",
+      "priority": "P1",
+      "expectedResult": "Min 8 and Max 64 password length enforced",
+      "tags": [
+        "boundary",
+        "auth",
+        "password"
+      ]
+    },
+    {
+      "id": "FIT-BND-002",
+      "featureId": "FR-CLI",
+      "category": "Boundary",
+      "title": "Client name boundary 1/2 and 80/81 characters",
+      "given": "the client creation form",
+      "when": "entering 1 char ('A'), 2 chars ('AB'), 80 chars, and 81 chars",
+      "then": "1 and 81 characters are rejected; 2 and 80 characters are accepted",
+      "priority": "P1",
+      "expectedResult": "Client name 2–80 characters enforced",
+      "tags": [
+        "boundary",
+        "clients",
+        "name"
+      ]
+    },
+    {
+      "id": "FIT-BND-003",
+      "featureId": "FR-INV",
+      "category": "Boundary",
+      "title": "Line item quantity boundary 0/1 and 999/1000",
+      "given": "an invoice line item",
+      "when": "entering quantity 0, 1, 999, and 1000",
+      "then": "0 and 1000 are rejected; 1 and 999 are accepted",
+      "priority": "P1",
+      "expectedResult": "Quantity range 1–999 enforced",
+      "tags": [
+        "boundary",
+        "invoices",
+        "quantity"
+      ]
+    },
+    {
+      "id": "FIT-BND-004",
+      "featureId": "FR-INV",
+      "category": "Boundary",
+      "title": "Unit price boundary 0.00/0.01 and 1,000,000.00/1,000,000.01",
+      "given": "an invoice line item",
+      "when": "entering unit price 0.00, 0.01, 1000000.00, and 1000000.01",
+      "then": "0.00 and 1000000.01 are rejected; 0.01 and 1000000.00 are accepted",
+      "priority": "P1",
+      "expectedResult": "Unit price range 0.01–1,000,000.00 enforced",
+      "tags": [
+        "boundary",
+        "invoices",
+        "price"
+      ]
+    },
+    {
+      "id": "FIT-BND-005",
+      "featureId": "FR-INV",
+      "category": "Boundary",
+      "title": "Line items count boundary 50 vs 51 items",
+      "given": "an invoice with 50 line items attached",
+      "when": "the freelancer attempts to add a 51st line item",
+      "then": "the 50 items save successfully but the 51st is blocked with limit error",
+      "priority": "P1",
+      "expectedResult": "Max 50 line items enforced",
+      "tags": [
+        "boundary",
+        "invoices",
+        "items"
+      ]
+    },
+    {
+      "id": "FIT-BND-006",
+      "featureId": "FR-INV",
+      "category": "Boundary",
+      "title": "Note length boundary 500 vs 501 characters",
+      "given": "the invoice optional note field",
+      "when": "entering exactly 500 characters then 501 characters",
+      "then": "500 characters passes; 501 characters is rejected",
+      "priority": "P2",
+      "expectedResult": "Max 500 characters note enforced",
+      "tags": [
+        "boundary",
+        "invoices",
+        "note"
+      ]
+    },
+    {
+      "id": "FIT-BND-007",
+      "featureId": "FR-INV",
+      "category": "Boundary",
+      "title": "Due date range boundary 180 vs 181 days after issue",
+      "given": "an invoice with issue date 2026-01-01",
+      "when": "setting due date to 180 days (2026-06-30) then 181 days (2026-07-01)",
+      "then": "180 days is accepted; 181 days is rejected",
+      "priority": "P1",
+      "expectedResult": "Due date max 180 days enforced",
+      "tags": [
+        "boundary",
+        "invoices",
+        "due-date"
+      ]
+    },
+    {
+      "id": "FIT-BND-008",
+      "featureId": "FR-EXP",
+      "category": "Boundary",
+      "title": "Export date range boundary 12 months vs 12 months + 1 day",
+      "given": "an Accountant requesting invoice export",
+      "when": "selecting 365 days range then 366 days range",
+      "then": "12 months is accepted; 12 months + 1 day is rejected with date limit error",
+      "priority": "P2",
+      "expectedResult": "Max 12 months export limit enforced",
+      "tags": [
+        "boundary",
+        "export",
+        "date-range"
+      ]
+    },
+    {
+      "id": "FIT-NEG-001",
+      "featureId": "FR-CLI",
+      "category": "Negative",
+      "title": "Duplicate client email within account rejected",
+      "given": "an existing client with email contact@beta.org",
+      "when": "creating another client with the same email contact@beta.org",
+      "then": "submission fails with error 'A client with this email already exists'",
+      "priority": "P0",
+      "expectedResult": "Duplicate email error shown",
+      "tags": [
+        "negative",
+        "clients",
+        "duplicate"
+      ]
+    },
+    {
+      "id": "FIT-NEG-002",
+      "featureId": "FR-CLI",
+      "category": "Negative",
+      "title": "Deleting client with unpaid invoices is disabled",
+      "given": "a client with 1 Sent unpaid invoice",
+      "when": "the freelancer views the client action menu",
+      "then": "the delete button is disabled with tooltip explaining unpaid invoices exist",
+      "priority": "P1",
+      "expectedResult": "Delete button disabled with tooltip",
+      "tags": [
+        "negative",
+        "clients",
+        "delete-guard"
+      ]
+    },
+    {
+      "id": "FIT-NEG-003",
+      "featureId": "FR-INV",
+      "category": "Negative",
+      "title": "Due date before issue date is rejected",
+      "given": "an invoice with issue date 2026-05-10",
+      "when": "the user sets due date to 2026-05-09 (one day before)",
+      "then": "validation error blocks save stating due date must be on or after issue date",
+      "priority": "P1",
+      "expectedResult": "Due date before issue date rejected",
+      "tags": [
+        "negative",
+        "invoices",
+        "date-order"
+      ]
+    },
+    {
+      "id": "FIT-NEG-004",
+      "featureId": "FR-INV",
+      "category": "Negative",
+      "title": "Editing a Sent invoice is blocked",
+      "given": "an invoice in Sent status",
+      "when": "attempting to edit line items or client details",
+      "then": "editing is prohibited; only Draft invoices can be edited",
+      "priority": "P0",
+      "expectedResult": "Sent invoice edit blocked; read-only view enforced",
+      "tags": [
+        "negative",
+        "invoices",
+        "lifecycle"
+      ]
+    },
+    {
+      "id": "FIT-NEG-005",
+      "featureId": "FR-PAY",
+      "category": "Negative",
+      "title": "Payment exceeding outstanding balance by $0.01 rejected",
+      "given": "an invoice with outstanding balance $250.00",
+      "when": "recording a payment of $250.01",
+      "then": "the submission is rejected with 'Amount exceeds outstanding balance'",
+      "priority": "P0",
+      "expectedResult": "Amount exceeds outstanding balance error displayed",
+      "tags": [
+        "negative",
+        "payments",
+        "overpayment"
+      ]
+    },
+    {
+      "id": "FIT-NEG-006",
+      "featureId": "FR-INV",
+      "category": "Negative",
+      "title": "Public invoice link opened 91 days after due date is expired",
+      "given": "an invoice with due date 91 days in the past",
+      "when": "opening the public invoice token URL",
+      "then": "the page shows an invoice link expired notice and denies payment actions",
+      "priority": "P1",
+      "expectedResult": "Public link expired after 90 days of due date",
+      "tags": [
+        "negative",
+        "public-link",
+        "expiry"
+      ]
+    },
+    {
+      "id": "FIT-SEC-001",
+      "featureId": "FR-AUTH",
+      "category": "Security",
+      "title": "6th failed login inside 10 minutes locks account for 15 minutes",
+      "given": "an account with 5 consecutive failed login attempts in 10 minutes",
+      "when": "a 6th failed login attempt is submitted",
+      "then": "the account is locked for 15 minutes and further login attempts return 423 Locked",
+      "priority": "P0",
+      "expectedResult": "Account locked for 15 minutes on 6th failed attempt",
+      "tags": [
+        "security",
+        "auth",
+        "lockout"
+      ]
+    },
+    {
+      "id": "FIT-SEC-002",
+      "featureId": "FR-AUTH",
+      "category": "Security",
+      "title": "Session invalidation after 60 minutes of inactivity",
+      "given": "an active session idle for 60 minutes",
+      "when": "any API request is made",
+      "then": "the session is terminated and user is redirected to login with 401",
+      "priority": "P1",
+      "expectedResult": "Session expires at 60 minutes inactivity",
+      "tags": [
+        "security",
+        "auth",
+        "session"
+      ]
+    },
+    {
+      "id": "FIT-SEC-003",
+      "featureId": "NFR",
+      "category": "Security",
+      "title": "Accountant write endpoint returns 403 Forbidden",
+      "given": "an authenticated Accountant session",
+      "when": "they send a POST to /api/invoices or PUT to /api/clients",
+      "then": "the server rejects the request with HTTP 403 Forbidden",
+      "priority": "P0",
+      "expectedResult": "Server-side RBAC enforces 403 for Accountant writes",
+      "tags": [
+        "security",
+        "rbac",
+        "accountant"
+      ]
+    },
+    {
+      "id": "FIT-SEC-004",
+      "featureId": "NFR",
+      "category": "Security",
+      "title": "Guessed or 31-char public link token rejected",
+      "given": "a public token endpoint",
+      "when": "a client supplies a 31-character token or random string",
+      "then": "access is denied with 404 Not Found without leaking existence",
+      "priority": "P0",
+      "expectedResult": "Invalid token rejected; unguessable 32-char token required",
+      "tags": [
+        "security",
+        "public-link",
+        "token"
+      ]
+    },
+    {
+      "id": "FIT-SEC-005",
+      "featureId": "NFR",
+      "category": "Security",
+      "title": "Script tag in note is rendered as plain text",
+      "given": "an invoice note containing <script>alert('xss')</script>",
+      "when": "the public invoice page or client invoice view renders",
+      "then": "the script text renders inert as plain text without script execution",
+      "priority": "P0",
+      "expectedResult": "XSS sanitized; rendered as plain text",
+      "tags": [
+        "security",
+        "xss",
+        "sanitization"
+      ]
+    },
+    {
+      "id": "FIT-SEC-006",
+      "featureId": "NFR",
+      "category": "Security",
+      "title": "Public invoice link isolates single invoice and reveals no other client data",
+      "given": "a valid public invoice link for Acme Corp",
+      "when": "the client inspects the response payload",
+      "then": "only that specific invoice details are returned; no other client data or invoices are exposed",
+      "priority": "P0",
+      "expectedResult": "Public invoice link exposes only target invoice data",
+      "tags": [
+        "security",
+        "isolation",
+        "public-link"
+      ]
+    }
+  ],
+  "playwright": {
+    "fileName": "invoice-tracker.spec.ts",
+    "specCode": "import { test, expect } from \"@playwright/test\";\nimport { LoginPage } from \"./pages/login.page.ts\";\nimport { ClientsPage } from \"./pages/clients.page.ts\";\nimport { InvoiceEditorPage } from \"./pages/invoice-editor.page.ts\";\nimport { PaymentsPage } from \"./pages/payments.page.ts\";\nimport { PublicInvoicePage } from \"./pages/public-invoice.page.ts\";\nimport { ExportPage } from \"./pages/export.page.ts\";\n\n/**\n * Freelancer Invoice Tracker\n * Generated by SpecShield QA — 30 tests across 6 features.\n * Run with: npx playwright test invoice-tracker.spec.ts\n */\n\ntest.describe(\"Authentication\", () => {\n  test.beforeEach(async ({ page }) => {\n    await page.goto(\"/login\");\n    await page.getByTestId(\"login-email\").fill(\"alex@freelance.dev\");\n    await page.getByTestId(\"login-password\").fill(\"Str0ngPass99\");\n    await page.getByRole(\"button\", { name: \"Sign in\" }).click();\n  });\n\n  test(\"Freelancer signs up with valid email and password\", async ({ page }) => {\n    // covers FIT-FUNC-001\n    const pom = new LoginPage(page);\n    await pom.goto();\n    // Given: a new freelancer on the signup screen\n    // When: they provide alex@freelance.dev and Str0ngPass99 with digits\n    await expect(page.getByTestId(\"status-fit-func-001\")).toBeVisible();\n    // Then: the account is created and the user is authenticated\n    await expect(page.getByTestId(\"result-fit-func-001\")).toContainText(\"Account created and dashboard accessible\");\n  });\n\n  test(\"Password boundary 7/8 and 64/65 characters\", async ({ page }) => {\n    // covers FIT-BND-001\n    const pom = new LoginPage(page);\n    await pom.goto();\n    // Given: the freelancer registration form\n    // When: testing 7 chars (Passw1!), 8 chars (Passw0rd), 64 chars, and 65 chars\n    await expect(page.getByTestId(\"status-fit-bnd-001\")).toBeVisible();\n    // Then: 7 and 65 are rejected; 8 and 64 are accepted\n    await expect(page.getByTestId(\"result-fit-bnd-001\")).toContainText(\"Min 8 and Max 64 password length enforce\");\n  });\n\n  test(\"6th failed login inside 10 minutes locks account for 15 minutes\", async ({ page }) => {\n    // covers FIT-SEC-001\n    const pom = new LoginPage(page);\n    await pom.goto();\n    // Given: an account with 5 consecutive failed login attempts in 10 minutes\n    // When: a 6th failed login attempt is submitted\n    await expect(page.getByTestId(\"status-fit-sec-001\")).toBeVisible();\n    // Then: the account is locked for 15 minutes and further login attempts return 423 Locked\n    await expect(page.getByTestId(\"result-fit-sec-001\")).toContainText(\"Account locked for 15 minutes on 6th fai\");\n  });\n\n  test(\"Session invalidation after 60 minutes of inactivity\", async ({ page }) => {\n    // covers FIT-SEC-002\n    const pom = new LoginPage(page);\n    await pom.goto();\n    // Given: an active session idle for 60 minutes\n    // When: any API request is made\n    await expect(page.getByTestId(\"status-fit-sec-002\")).toBeVisible();\n    // Then: the session is terminated and user is redirected to login with 401\n    await expect(page.getByTestId(\"result-fit-sec-002\")).toContainText(\"Session expires at 60 minutes inactivity\");\n  });\n\n});\n\ntest.describe(\"Clients\", () => {\n  test.beforeEach(async ({ page }) => {\n    await page.goto(\"/login\");\n    await page.getByTestId(\"login-email\").fill(\"alex@freelance.dev\");\n    await page.getByTestId(\"login-password\").fill(\"Str0ngPass99\");\n    await page.getByRole(\"button\", { name: \"Sign in\" }).click();\n  });\n\n  test(\"Freelancer creates client with name, email and USD currency\", async ({ page }) => {\n    // covers FIT-FUNC-002\n    const pom = new ClientsPage(page);\n    await pom.goto();\n    // Given: an authenticated freelancer on the clients screen\n    // When: they add Acme Corp with email billing@acme.com and currency USD\n    await expect(page.getByTestId(\"status-fit-func-002\")).toBeVisible();\n    // Then: the client is saved and appears in the client selector\n    await expect(page.getByTestId(\"result-fit-func-002\")).toContainText(\"Client saved with currency USD\");\n  });\n\n  test(\"Client name boundary 1/2 and 80/81 characters\", async ({ page }) => {\n    // covers FIT-BND-002\n    const pom = new ClientsPage(page);\n    await pom.goto();\n    // Given: the client creation form\n    // When: entering 1 char ('A'), 2 chars ('AB'), 80 chars, and 81 chars\n    await expect(page.getByTestId(\"status-fit-bnd-002\")).toBeVisible();\n    // Then: 1 and 81 characters are rejected; 2 and 80 characters are accepted\n    await expect(page.getByTestId(\"result-fit-bnd-002\")).toContainText(\"Client name 2–80 characters enforced\");\n  });\n\n  test(\"Duplicate client email within account rejected\", async ({ page }) => {\n    // covers FIT-NEG-001\n    const pom = new ClientsPage(page);\n    await pom.goto();\n    // Given: an existing client with email contact@beta.org\n    // When: creating another client with the same email contact@beta.org\n    await expect(page.getByTestId(\"status-fit-neg-001\")).toBeVisible();\n    // Then: submission fails with error 'A client with this email already exists'\n    await expect(page.getByTestId(\"result-fit-neg-001\")).toContainText(\"Duplicate email error shown\");\n  });\n\n  test(\"Deleting client with unpaid invoices is disabled\", async ({ page }) => {\n    // covers FIT-NEG-002\n    const pom = new ClientsPage(page);\n    await pom.goto();\n    // Given: a client with 1 Sent unpaid invoice\n    // When: the freelancer views the client action menu\n    await expect(page.getByTestId(\"status-fit-neg-002\")).toBeVisible();\n    // Then: the delete button is disabled with tooltip explaining unpaid invoices exist\n    await expect(page.getByTestId(\"result-fit-neg-002\")).toContainText(\"Delete button disabled with tooltip\");\n  });\n\n});\n\ntest.describe(\"Invoices\", () => {\n  test.beforeEach(async ({ page }) => {\n    await page.goto(\"/login\");\n    await page.getByTestId(\"login-email\").fill(\"alex@freelance.dev\");\n    await page.getByTestId(\"login-password\").fill(\"Str0ngPass99\");\n    await page.getByRole(\"button\", { name: \"Sign in\" }).click();\n  });\n\n  test(\"Freelancer creates invoice with 2 items and computed total\", async ({ page }) => {\n    // covers FIT-FUNC-003\n    const pom = new InvoiceEditorPage(page);\n    await pom.goto();\n    // Given: an existing client Acme Corp\n    // When: they add 2 items (Design 10h @ $100.00 and QA 5h @ $80.00)\n    await expect(page.getByTestId(\"status-fit-func-003\")).toBeVisible();\n    // Then: total computes to $1,400.00 and invoice number INV-2026-0001 is generated\n    await expect(page.getByTestId(\"result-fit-func-003\")).toContainText(\"Invoice created in Draft status with tot\");\n  });\n\n  test(\"Sending invoice generates public link with 32-char token\", async ({ page }) => {\n    // covers FIT-FUNC-004\n    const pom = new InvoiceEditorPage(page);\n    await pom.goto();\n    // Given: a Draft invoice INV-2026-0001\n    // When: the freelancer clicks Send Invoice\n    await expect(page.getByTestId(\"status-fit-func-004\")).toBeVisible();\n    // Then: status becomes Sent and an email is queued with an unguessable 32-char public link\n    await expect(page.getByTestId(\"result-fit-func-004\")).toContainText(\"Invoice status Sent; 32-char public toke\");\n  });\n\n  test(\"Sequential invoice numbering never reuses cancelled number\", async ({ page }) => {\n    // covers FIT-FUNC-010\n    const pom = new InvoiceEditorPage(page);\n    await pom.goto();\n    // Given: invoice INV-2026-0002 cancelled by the freelancer\n    // When: they create the next invoice\n    await expect(page.getByTestId(\"status-fit-func-010\")).toBeVisible();\n    // Then: the new invoice is assigned INV-2026-0003 and 0002 is never reused\n    await expect(page.getByTestId(\"result-fit-func-010\")).toContainText(\"Next number INV-2026-0003 generated sequ\");\n  });\n\n  test(\"Line item quantity boundary 0/1 and 999/1000\", async ({ page }) => {\n    // covers FIT-BND-003\n    const pom = new InvoiceEditorPage(page);\n    await pom.goto();\n    // Given: an invoice line item\n    // When: entering quantity 0, 1, 999, and 1000\n    await expect(page.getByTestId(\"status-fit-bnd-003\")).toBeVisible();\n    // Then: 0 and 1000 are rejected; 1 and 999 are accepted\n    await expect(page.getByTestId(\"result-fit-bnd-003\")).toContainText(\"Quantity range 1–999 enforced\");\n  });\n\n  test(\"Unit price boundary 0.00/0.01 and 1,000,000.00/1,000,000.01\", async ({ page }) => {\n    // covers FIT-BND-004\n    const pom = new InvoiceEditorPage(page);\n    await pom.goto();\n    // Given: an invoice line item\n    // When: entering unit price 0.00, 0.01, 1000000.00, and 1000000.01\n    await expect(page.getByTestId(\"status-fit-bnd-004\")).toBeVisible();\n    // Then: 0.00 and 1000000.01 are rejected; 0.01 and 1000000.00 are accepted\n    await expect(page.getByTestId(\"result-fit-bnd-004\")).toContainText(\"Unit price range 0.01–1,000,000.00 enfor\");\n  });\n\n  test(\"Line items count boundary 50 vs 51 items\", async ({ page }) => {\n    // covers FIT-BND-005\n    const pom = new InvoiceEditorPage(page);\n    await pom.goto();\n    // Given: an invoice with 50 line items attached\n    // When: the freelancer attempts to add a 51st line item\n    await expect(page.getByTestId(\"status-fit-bnd-005\")).toBeVisible();\n    // Then: the 50 items save successfully but the 51st is blocked with limit error\n    await expect(page.getByTestId(\"result-fit-bnd-005\")).toContainText(\"Max 50 line items enforced\");\n  });\n\n  test(\"Note length boundary 500 vs 501 characters\", async ({ page }) => {\n    // covers FIT-BND-006\n    const pom = new InvoiceEditorPage(page);\n    await pom.goto();\n    // Given: the invoice optional note field\n    // When: entering exactly 500 characters then 501 characters\n    await expect(page.getByTestId(\"status-fit-bnd-006\")).toBeVisible();\n    // Then: 500 characters passes; 501 characters is rejected\n    await expect(page.getByTestId(\"result-fit-bnd-006\")).toContainText(\"Max 500 characters note enforced\");\n  });\n\n  test(\"Due date range boundary 180 vs 181 days after issue\", async ({ page }) => {\n    // covers FIT-BND-007\n    const pom = new InvoiceEditorPage(page);\n    await pom.goto();\n    // Given: an invoice with issue date 2026-01-01\n    // When: setting due date to 180 days (2026-06-30) then 181 days (2026-07-01)\n    await expect(page.getByTestId(\"status-fit-bnd-007\")).toBeVisible();\n    // Then: 180 days is accepted; 181 days is rejected\n    await expect(page.getByTestId(\"result-fit-bnd-007\")).toContainText(\"Due date max 180 days enforced\");\n  });\n\n  test(\"Due date before issue date is rejected\", async ({ page }) => {\n    // covers FIT-NEG-003\n    const pom = new InvoiceEditorPage(page);\n    await pom.goto();\n    // Given: an invoice with issue date 2026-05-10\n    // When: the user sets due date to 2026-05-09 (one day before)\n    await expect(page.getByTestId(\"status-fit-neg-003\")).toBeVisible();\n    // Then: validation error blocks save stating due date must be on or after issue date\n    await expect(page.getByTestId(\"result-fit-neg-003\")).toContainText(\"Due date before issue date rejected\");\n  });\n\n  test(\"Editing a Sent invoice is blocked\", async ({ page }) => {\n    // covers FIT-NEG-004\n    const pom = new InvoiceEditorPage(page);\n    await pom.goto();\n    // Given: an invoice in Sent status\n    // When: attempting to edit line items or client details\n    await expect(page.getByTestId(\"status-fit-neg-004\")).toBeVisible();\n    // Then: editing is prohibited; only Draft invoices can be edited\n    await expect(page.getByTestId(\"result-fit-neg-004\")).toContainText(\"Sent invoice edit blocked; read-only vie\");\n  });\n\n  test(\"Public invoice link opened 91 days after due date is expired\", async ({ page }) => {\n    // covers FIT-NEG-006\n    const pom = new InvoiceEditorPage(page);\n    await pom.goto();\n    // Given: an invoice with due date 91 days in the past\n    // When: opening the public invoice token URL\n    await expect(page.getByTestId(\"status-fit-neg-006\")).toBeVisible();\n    // Then: the page shows an invoice link expired notice and denies payment actions\n    await expect(page.getByTestId(\"result-fit-neg-006\")).toContainText(\"Public link expired after 90 days of due\");\n  });\n\n});\n\ntest.describe(\"Payments & Reminders\", () => {\n  test.beforeEach(async ({ page }) => {\n    await page.goto(\"/login\");\n    await page.getByTestId(\"login-email\").fill(\"alex@freelance.dev\");\n    await page.getByTestId(\"login-password\").fill(\"Str0ngPass99\");\n    await page.getByRole(\"button\", { name: \"Sign in\" }).click();\n  });\n\n  test(\"Client clicks Payment Sent on public link\", async ({ page }) => {\n    // covers FIT-FUNC-005\n    const pom = new PaymentsPage(page);\n    await pom.goto();\n    // Given: a client viewing invoice INV-2026-0001 via public link\n    // When: they click Payment Sent\n    await expect(page.getByTestId(\"status-fit-func-005\")).toBeVisible();\n    // Then: the freelancer is notified and the invoice status remains Sent\n    await expect(page.getByTestId(\"result-fit-func-005\")).toContainText(\"Freelancer notified; status remains Sent\");\n  });\n\n  test(\"Recording partial payment reduces balance\", async ({ page }) => {\n    // covers FIT-FUNC-006\n    const pom = new PaymentsPage(page);\n    await pom.goto();\n    // Given: a Sent invoice with total $1,400.00\n    // When: the freelancer records a partial payment of $600.00\n    await expect(page.getByTestId(\"status-fit-func-006\")).toBeVisible();\n    // Then: status remains Sent with outstanding balance $800.00\n    await expect(page.getByTestId(\"result-fit-func-006\")).toContainText(\"Remaining balance updated to 800.00\");\n  });\n\n  test(\"Sum of payments equaling total flips status to Paid\", async ({ page }) => {\n    // covers FIT-FUNC-007\n    const pom = new PaymentsPage(page);\n    await pom.goto();\n    // Given: an invoice with $800.00 outstanding balance\n    // When: the freelancer records a second payment of $800.00\n    await expect(page.getByTestId(\"status-fit-func-007\")).toBeVisible();\n    // Then: total payments equal $1,400.00 and status flips to Paid automatically\n    await expect(page.getByTestId(\"result-fit-func-007\")).toContainText(\"Status flips to Paid; outstanding balanc\");\n  });\n\n  test(\"Unpaid invoice 1 day after due date becomes Overdue\", async ({ page }) => {\n    // covers FIT-FUNC-008\n    const pom = new PaymentsPage(page);\n    await pom.goto();\n    // Given: an invoice unpaid at due date + 1 day\n    // When: the overnight reminder job executes\n    await expect(page.getByTestId(\"status-fit-func-008\")).toBeVisible();\n    // Then: status flips to Overdue and reminder email is queued for +1 day\n    await expect(page.getByTestId(\"result-fit-func-008\")).toContainText(\"Status becomes Overdue; reminders schedu\");\n  });\n\n  test(\"Payment exceeding outstanding balance by $0.01 rejected\", async ({ page }) => {\n    // covers FIT-NEG-005\n    const pom = new PaymentsPage(page);\n    await pom.goto();\n    // Given: an invoice with outstanding balance $250.00\n    // When: recording a payment of $250.01\n    await expect(page.getByTestId(\"status-fit-neg-005\")).toBeVisible();\n    // Then: the submission is rejected with 'Amount exceeds outstanding balance'\n    await expect(page.getByTestId(\"result-fit-neg-005\")).toContainText(\"Amount exceeds outstanding balance error\");\n  });\n\n});\n\ntest.describe(\"Export\", () => {\n  test.beforeEach(async ({ page }) => {\n    await page.goto(\"/login\");\n    await page.getByTestId(\"login-email\").fill(\"alex@freelance.dev\");\n    await page.getByTestId(\"login-password\").fill(\"Str0ngPass99\");\n    await page.getByRole(\"button\", { name: \"Sign in\" }).click();\n  });\n\n  test(\"Accountant exports invoices for 6-month range as CSV\", async ({ page }) => {\n    // covers FIT-FUNC-009\n    const pom = new ExportPage(page);\n    await pom.goto();\n    // Given: an authenticated Accountant user\n    // When: they request a CSV export for Jan 1 to Jun 30\n    await expect(page.getByTestId(\"status-fit-func-009\")).toBeVisible();\n    // Then: a CSV file downloads containing all invoices in that date range\n    await expect(page.getByTestId(\"result-fit-func-009\")).toContainText(\"CSV downloaded with invoice records and \");\n  });\n\n  test(\"Export date range boundary 12 months vs 12 months + 1 day\", async ({ page }) => {\n    // covers FIT-BND-008\n    const pom = new ExportPage(page);\n    await pom.goto();\n    // Given: an Accountant requesting invoice export\n    // When: selecting 365 days range then 366 days range\n    await expect(page.getByTestId(\"status-fit-bnd-008\")).toBeVisible();\n    // Then: 12 months is accepted; 12 months + 1 day is rejected with date limit error\n    await expect(page.getByTestId(\"result-fit-bnd-008\")).toContainText(\"Max 12 months export limit enforced\");\n  });\n\n});\n\ntest.describe(\"Security, Performance & Accessibility\", () => {\n  test.beforeEach(async ({ page }) => {\n    await page.goto(\"/login\");\n    await page.getByTestId(\"login-email\").fill(\"alex@freelance.dev\");\n    await page.getByTestId(\"login-password\").fill(\"Str0ngPass99\");\n    await page.getByRole(\"button\", { name: \"Sign in\" }).click();\n  });\n\n  test(\"Accountant write endpoint returns 403 Forbidden\", async ({ page }) => {\n    // covers FIT-SEC-003\n    const pom = new PublicInvoicePage(page);\n    await pom.goto();\n    // Given: an authenticated Accountant session\n    // When: they send a POST to /api/invoices or PUT to /api/clients\n    await expect(page.getByTestId(\"status-fit-sec-003\")).toBeVisible();\n    // Then: the server rejects the request with HTTP 403 Forbidden\n    await expect(page.getByTestId(\"result-fit-sec-003\")).toContainText(\"Server-side RBAC enforces 403 for Accoun\");\n  });\n\n  test(\"Guessed or 31-char public link token rejected\", async ({ page }) => {\n    // covers FIT-SEC-004\n    const pom = new PublicInvoicePage(page);\n    await pom.goto();\n    // Given: a public token endpoint\n    // When: a client supplies a 31-character token or random string\n    await expect(page.getByTestId(\"status-fit-sec-004\")).toBeVisible();\n    // Then: access is denied with 404 Not Found without leaking existence\n    await expect(page.getByTestId(\"result-fit-sec-004\")).toContainText(\"Invalid token rejected; unguessable 32-c\");\n  });\n\n  test(\"Script tag in note is rendered as plain text\", async ({ page }) => {\n    // covers FIT-SEC-005\n    const pom = new PublicInvoicePage(page);\n    await pom.goto();\n    // Given: an invoice note containing <script>alert('xss')</script>\n    // When: the public invoice page or client invoice view renders\n    await expect(page.getByTestId(\"status-fit-sec-005\")).toBeVisible();\n    // Then: the script text renders inert as plain text without script execution\n    await expect(page.getByTestId(\"result-fit-sec-005\")).toContainText(\"XSS sanitized; rendered as plain text\");\n  });\n\n  test(\"Public invoice link isolates single invoice and reveals no other client data\", async ({ page }) => {\n    // covers FIT-SEC-006\n    const pom = new PublicInvoicePage(page);\n    await pom.goto();\n    // Given: a valid public invoice link for Acme Corp\n    // When: the client inspects the response payload\n    await expect(page.getByTestId(\"status-fit-sec-006\")).toBeVisible();\n    // Then: only that specific invoice details are returned; no other client data or invoices are exposed\n    await expect(page.getByTestId(\"result-fit-sec-006\")).toContainText(\"Public invoice link exposes only target \");\n  });\n\n});\n",
+    "pageObjects": [
+      {
+        "fileName": "login.page.ts",
+        "code": "import { type Page, type Locator, expect } from \"@playwright/test\";\n\n/** Page Object for Authentication (Freelancer & Accountant login) */\nexport class LoginPage {\n  readonly page: Page;\n  readonly heading: Locator;\n  readonly emailInput: Locator;\n  readonly passwordInput: Locator;\n  readonly submitButton: Locator;\n\n  constructor(page: Page) {\n    this.page = page;\n    this.heading = page.getByRole(\"heading\", { name: \"Sign In\" });\n    this.emailInput = page.getByTestId(\"login-email\");\n    this.passwordInput = page.getByTestId(\"login-password\");\n    this.submitButton = page.getByRole(\"button\", { name: \"Sign in\" });\n  }\n\n  async goto() {\n    await this.page.goto(\"/login\");\n  }\n\n  async login(email: string, pass: string) {\n    await this.emailInput.fill(email);\n    await this.passwordInput.fill(pass);\n    await this.submitButton.click();\n  }\n\n  async expectLoaded() {\n    await expect(this.heading).toBeVisible();\n  }\n}\n"
+      },
+      {
+        "fileName": "clients.page.ts",
+        "code": "import { type Page, type Locator, expect } from \"@playwright/test\";\n\n/** Page Object for Clients Management */\nexport class ClientsPage {\n  readonly page: Page;\n  readonly heading: Locator;\n  readonly nameInput: Locator;\n  readonly emailInput: Locator;\n  readonly currencySelect: Locator;\n  readonly createButton: Locator;\n\n  constructor(page: Page) {\n    this.page = page;\n    this.heading = page.getByRole(\"heading\", { name: \"Clients\" });\n    this.nameInput = page.getByTestId(\"clientName\");\n    this.emailInput = page.getByTestId(\"clientEmail\");\n    this.currencySelect = page.getByTestId(\"currency\");\n    this.createButton = page.getByRole(\"button\", { name: \"Add Client\" });\n  }\n\n  async goto() {\n    await this.page.goto(\"/clients\");\n  }\n\n  async createClient(name: string, email: string, currency: string) {\n    await this.nameInput.fill(name);\n    await this.emailInput.fill(email);\n    await this.currencySelect.selectOption(currency);\n    await this.createButton.click();\n  }\n\n  async expectLoaded() {\n    await expect(this.page.getByTestId(\"clients-root\")).toBeVisible();\n  }\n}\n"
+      },
+      {
+        "fileName": "invoice-editor.page.ts",
+        "code": "import { type Page, type Locator, expect } from \"@playwright/test\";\n\n/** Page Object for Invoice Creation and Editing */\nexport class InvoiceEditorPage {\n  readonly page: Page;\n  readonly heading: Locator;\n  readonly clientSelect: Locator;\n  readonly issueDateInput: Locator;\n  readonly dueDateInput: Locator;\n  readonly noteInput: Locator;\n  readonly addItemButton: Locator;\n  readonly saveDraftButton: Locator;\n  readonly sendInvoiceButton: Locator;\n\n  constructor(page: Page) {\n    this.page = page;\n    this.heading = page.getByRole(\"heading\", { name: \"Invoice Editor\" });\n    this.clientSelect = page.getByTestId(\"invoiceClient\");\n    this.issueDateInput = page.getByTestId(\"issueDate\");\n    this.dueDateInput = page.getByTestId(\"dueDate\");\n    this.noteInput = page.getByTestId(\"note\");\n    this.addItemButton = page.getByRole(\"button\", { name: \"Add Item\" });\n    this.saveDraftButton = page.getByRole(\"button\", { name: \"Save Draft\" });\n    this.sendInvoiceButton = page.getByRole(\"button\", { name: \"Send Invoice\" });\n  }\n\n  async goto() {\n    await this.page.goto(\"/invoices/new\");\n  }\n\n  async expectLoaded() {\n    await expect(this.page.getByTestId(\"invoice-editor-root\")).toBeVisible();\n  }\n}\n"
+      },
+      {
+        "fileName": "payments.page.ts",
+        "code": "import { type Page, type Locator, expect } from \"@playwright/test\";\n\n/** Page Object for Payments & Balance Tracking */\nexport class PaymentsPage {\n  readonly page: Page;\n  readonly heading: Locator;\n  readonly amountInput: Locator;\n  readonly dateInput: Locator;\n  readonly recordButton: Locator;\n\n  constructor(page: Page) {\n    this.page = page;\n    this.heading = page.getByRole(\"heading\", { name: \"Payments\" });\n    this.amountInput = page.getByTestId(\"paymentAmount\");\n    this.dateInput = page.getByTestId(\"paymentDate\");\n    this.recordButton = page.getByRole(\"button\", { name: \"Record Payment\" });\n  }\n\n  async goto() {\n    await this.page.goto(\"/payments\");\n  }\n\n  async expectLoaded() {\n    await expect(this.page.getByTestId(\"payments-root\")).toBeVisible();\n  }\n}\n"
+      },
+      {
+        "fileName": "public-invoice.page.ts",
+        "code": "import { type Page, type Locator, expect } from \"@playwright/test\";\n\n/** Page Object for Public Client Invoice View */\nexport class PublicInvoicePage {\n  readonly page: Page;\n  readonly heading: Locator;\n  readonly paymentSentButton: Locator;\n\n  constructor(page: Page) {\n    this.page = page;\n    this.heading = page.getByRole(\"heading\", { name: \"Invoice Details\" });\n    this.paymentSentButton = page.getByRole(\"button\", { name: \"Payment Sent\" });\n  }\n\n  async gotoToken(token: string) {\n    await this.page.goto(`/i/${token}`);\n  }\n\n  async expectLoaded() {\n    await expect(this.page.getByTestId(\"public-invoice-root\")).toBeVisible();\n  }\n}\n"
+      },
+      {
+        "fileName": "export.page.ts",
+        "code": "import { type Page, type Locator, expect } from \"@playwright/test\";\n\n/** Page Object for Accountant CSV Export */\nexport class ExportPage {\n  readonly page: Page;\n  readonly heading: Locator;\n  readonly startDateInput: Locator;\n  readonly endDateInput: Locator;\n  readonly exportButton: Locator;\n\n  constructor(page: Page) {\n    this.page = page;\n    this.heading = page.getByRole(\"heading\", { name: \"Export Invoices\" });\n    this.startDateInput = page.getByTestId(\"startDate\");\n    this.endDateInput = page.getByTestId(\"endDate\");\n    this.exportButton = page.getByRole(\"button\", { name: \"Export CSV\" });\n  }\n\n  async goto() {\n    await this.page.goto(\"/export\");\n  }\n\n  async exportCsv() {\n    const download = this.page.waitForEvent(\"download\");\n    await this.exportButton.click();\n    return download;\n  }\n\n  async expectLoaded() {\n    await expect(this.page.getByTestId(\"export-root\")).toBeVisible();\n  }\n}\n"
+      }
+    ]
+  }
+}

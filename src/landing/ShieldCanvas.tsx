@@ -1,38 +1,49 @@
 import { useEffect, useRef, useState } from "react";
-import { StaticShield } from "./StaticShield.tsx";
-import { useInView, useMediaQuery, usePrefersReducedMotion } from "./hooks.ts";
+import { useMediaQuery, usePrefersReducedMotion } from "./hooks.ts";
 import type { ShieldField } from "./webgl/ShieldField.ts";
+import type { ShapeIndex } from "./webgl/sdf.ts";
 
 /** Position-texture side per breakpoint: 262,144 / 65,536 / 16,384 particles. */
 const TEXTURE_SIZE = { desktop: 512, tablet: 256, mobile: 128 } as const;
 const MAX_PIXEL_RATIO = 2;
+/** Fraction of the viewport height over which the field fades from hero subject to page backdrop. */
+const AMBIENT_SCROLL_SPAN = 0.7;
 
 type Tier = keyof typeof TEXTURE_SIZE;
 
 export interface ShieldCanvasProps {
-  /** Reports the live particle count once the simulation is running (null while static). */
-  onParticleCount?: (count: number | null) => void;
+  /** Shape the particle field should form. */
+  shape: ShapeIndex;
+  /** Reports the live particle count once the simulation is running, and null when it is not. */
+  onParticleCount: (count: number | null) => void;
 }
 
 /**
- * Hero background: the WebGL particle shield, or a static SVG shield when the visitor prefers
- * reduced motion or the browser cannot run the simulation.
+ * The WebGL particle field, fixed behind the whole landing page. In the hero it is the subject;
+ * once the page scrolls on it dims into a backdrop and keeps morphing with the sections. Renders
+ * nothing when the visitor prefers reduced motion or the browser cannot run the simulation; the
+ * hero then shows its static SVG shield.
  */
-export function ShieldCanvas({ onParticleCount }: ShieldCanvasProps) {
+export function ShieldCanvas({ shape, onParticleCount }: ShieldCanvasProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fieldRef = useRef<ShieldField | null>(null);
+  const shapeRef = useRef(shape);
   const reducedMotion = usePrefersReducedMotion();
   const isDesktop = useMediaQuery("(min-width: 1025px)");
   const isTabletUp = useMediaQuery("(min-width: 768px)");
   const tier: Tier = isDesktop ? "desktop" : isTabletUp ? "tablet" : "mobile";
   const [unsupported, setUnsupported] = useState(false);
   const [ready, setReady] = useState(false);
-  const inView = useInView(hostRef);
-  const showStatic = reducedMotion || unsupported;
+  const disabled = reducedMotion || unsupported;
 
   useEffect(() => {
-    if (showStatic) return;
+    shapeRef.current = shape;
+    fieldRef.current?.setShape(shape);
+  }, [shape]);
+
+  useEffect(() => {
+    if (disabled) return;
     const canvas = canvasRef.current;
     const host = hostRef.current;
     if (!canvas || !host) return;
@@ -49,10 +60,14 @@ export function ShieldCanvas({ onParticleCount }: ShieldCanvasProps) {
         width: rect.width,
         height: rect.height,
         pixelRatio: Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO),
-        offsetX: wide ? 0.21 : 0,
-        offsetY: wide ? 0.01 : 0.17,
+        offsetX: wide ? 0.16 : 0,
+        offsetY: wide ? 0.02 : 0.17,
+        ambientOffsetX: wide ? 0.2 : 0,
+        ambientOffsetY: 0,
+        ambientOpacity: wide ? 0.34 : 0.2,
       });
     };
+    const applyScroll = () => field?.setAmbient(window.scrollY / (window.innerHeight * AMBIENT_SCROLL_SPAN));
 
     void import("./webgl/ShieldField.ts").then(({ ShieldField: Field }) => {
       if (cancelled) return;
@@ -64,34 +79,31 @@ export function ShieldCanvas({ onParticleCount }: ShieldCanvasProps) {
       }
       fieldRef.current = field;
       applyLayout();
+      applyScroll();
+      field.setShape(shapeRef.current);
+      field.start();
       resizeObserver = new ResizeObserver(applyLayout);
       resizeObserver.observe(host);
+      window.addEventListener("scroll", applyScroll, { passive: true });
       setReady(true);
-      onParticleCount?.(field.particleCount);
+      onParticleCount(field.particleCount);
     });
 
     return () => {
       cancelled = true;
       resizeObserver?.disconnect();
+      window.removeEventListener("scroll", applyScroll);
       field?.dispose();
       fieldRef.current = null;
       setReady(false);
-      onParticleCount?.(null);
+      onParticleCount(null);
     };
-  }, [showStatic, tier, onParticleCount]);
+  }, [disabled, tier, onParticleCount]);
 
-  // Only simulate while the hero is on screen.
+  // Cursor and touch movement drive the fluid. Listeners sit on the window because the page
+  // content is layered above the canvas.
   useEffect(() => {
-    const field = fieldRef.current;
-    if (!ready || !field) return;
-    if (inView) field.start();
-    else field.stop();
-  }, [ready, inView]);
-
-  // Cursor and touch movement drive the fluid. Listeners sit on the window because the hero copy
-  // is layered above the canvas.
-  useEffect(() => {
-    if (!ready || !inView) return;
+    if (!ready) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const feed = (clientX: number, clientY: number, time: number) => {
@@ -118,17 +130,12 @@ export function ShieldCanvas({ onParticleCount }: ShieldCanvasProps) {
       window.removeEventListener("touchend", release);
       window.removeEventListener("touchcancel", release);
     };
-  }, [ready, inView]);
+  }, [ready]);
 
+  if (disabled) return null;
   return (
-    <div ref={hostRef} className="absolute inset-0" aria-hidden>
-      {showStatic ? (
-        <div className="hero-static">
-          <StaticShield />
-        </div>
-      ) : (
-        <canvas id="bg" ref={canvasRef} className="hero-canvas" />
-      )}
+    <div ref={hostRef} className="shield-backdrop" aria-hidden>
+      <canvas id="bg" ref={canvasRef} className="block h-full w-full" />
     </div>
   );
 }

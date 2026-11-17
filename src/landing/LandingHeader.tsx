@@ -3,7 +3,6 @@ import { clsx } from "clsx";
 import { ArrowRight } from "lucide-react";
 import { ShieldMark } from "../components/brand/ShieldMark.tsx";
 import { Link } from "../lib/router.tsx";
-import { useActiveSection } from "./hooks.ts";
 
 const SECTIONS = [
   { id: "overview", label: "Overview" },
@@ -11,11 +10,24 @@ const SECTIONS = [
   { id: "security", label: "Security" },
 ] as const;
 
-const SECTION_IDS = SECTIONS.map((s) => s.id);
+/** Page section → the nav item that stays highlighted while it is on screen. */
+const NAV_FOR_SECTION: Record<string, (typeof SECTIONS)[number]["id"]> = {
+  overview: "overview",
+  problem: "overview",
+  "how-it-works": "how-it-works",
+  sandbox: "how-it-works",
+  showcase: "how-it-works",
+  security: "security",
+};
 
-export function LandingHeader() {
+export interface LandingHeaderProps {
+  /** Id of the page section currently in view. */
+  activeSection: string | null;
+}
+
+export function LandingHeader({ activeSection }: LandingHeaderProps) {
   const [scrolled, setScrolled] = useState(false);
-  const active = useActiveSection(SECTION_IDS);
+  const active = activeSection ? (NAV_FOR_SECTION[activeSection] ?? null) : null;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);

@@ -10,9 +10,9 @@ interface Fact {
 }
 
 /**
- * The one privacy card. "0 bytes outbound" is measured, not asserted: it reflects this browser
- * tab's own network activity since the studio opened, and the card switches to a warning when the
- * local server reports that diagnostics tracing is switched on.
+ * The privacy receipt. "0 Outbound Packets" is measured, not asserted: it reflects this browser
+ * tab's own network activity since the studio opened, and the receipt switches to a warning when
+ * the local server reports that diagnostics tracing is switched on.
  */
 export function PrivacyBadge() {
   const { health, error } = useHealth();
@@ -22,39 +22,39 @@ export function PrivacyBadge() {
   const warn = tracing || leaking;
 
   const outbound: Fact = leaking
-    ? { value: `${audit.externalRequests} external request${audit.externalRequests === 1 ? "" : "s"}`, label: "from this tab", warn: true }
+    ? { value: String(audit.externalRequests), label: `External Request${audit.externalRequests === 1 ? "" : "s"}`, warn: true }
     : tracing
-      ? { value: "Tracing on", label: "diagnostics leave this machine", warn: true }
-      : { value: "0 bytes", label: "outbound" };
-
-  const facts: Fact[] = [outbound, { value: "$0.00", label: "API cost" }, { value: "Local-First", label: "execution" }];
+      ? { value: "Tracing On", label: "Diagnostics Leave This Machine", warn: true }
+      : { value: "0", label: "Outbound Packets" };
+  const facts: Fact[] = [outbound, { value: "$0.00", label: "Cloud Cost" }];
 
   return (
     <section
       aria-label="Privacy"
-      className={clsx("panel min-w-0 p-4", warn ? "border-amber-500/30" : "border-emerald-500/25 bg-gradient-to-br from-emerald-500/[0.07] to-transparent")}
+      className={clsx("panel min-w-0 px-4 py-3", warn ? "border-amber-500/30" : "border-emerald-500/25 bg-gradient-to-br from-emerald-500/[0.07] to-transparent")}
     >
-      <div className="flex items-center gap-2.5">
-        <span
-          aria-hidden
-          className={clsx(
-            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
-            warn ? "border-amber-500/30 bg-amber-500/10 text-amber-300" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-          )}
-        >
-          {warn ? <TriangleAlert size={15} /> : <Lock size={15} />}
-        </span>
-        <h2 className="text-sm font-semibold tracking-tight text-fg">{warn ? "Local-First Privacy" : "Air-Gapped Privacy"}</h2>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <h2 className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight text-fg">
+          <span
+            aria-hidden
+            className={clsx(
+              "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border",
+              warn ? "border-amber-500/30 bg-amber-500/10 text-amber-300" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+            )}
+          >
+            {warn ? <TriangleAlert size={14} /> : <Lock size={14} />}
+          </span>
+          {warn ? "Local-First" : "Air-Gapped"}
+        </h2>
+        <dl className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          {facts.map((fact) => (
+            <div key={fact.label} className="flex items-baseline gap-1.5 border-l border-edge-strong pl-4">
+              <dd className={clsx("tabular text-[15px] font-semibold", fact.warn ? "text-amber-300" : "text-emerald-300")}>{fact.value}</dd>
+              <dt className="text-xs text-fg-muted">{fact.label}</dt>
+            </div>
+          ))}
+        </dl>
       </div>
-
-      <dl className="mt-3 grid grid-cols-3 divide-x divide-edge">
-        {facts.map((fact) => (
-          <div key={fact.label} className="flex min-w-0 flex-col-reverse px-3 first:pl-0 last:pr-0">
-            <dt className="truncate text-[11px] text-fg-dim">{fact.label}</dt>
-            <dd className={clsx("tabular truncate text-[15px] font-semibold", fact.warn ? "text-amber-300" : "text-emerald-300")}>{fact.value}</dd>
-          </div>
-        ))}
-      </dl>
 
       {tracing && (
         <p className="mt-3 text-xs leading-relaxed text-amber-200/90">

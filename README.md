@@ -81,9 +81,10 @@ Vite :5173 ──/api──▶ Hono :8787 ──▶ Mastra specShieldWorkflow �
 
 ## Front end
 
-- **Landing page** (`src/landing/`). The hero simulates 262,144 particles on desktop (65,536 on tablets, 16,384 on phones) in float textures: an SDF pulls them onto the shield, and a half-float stable-fluids solver turns cursor or touch movement into a wake that carries them off and lets them heal back. The simulation only runs while the hero is on screen. With `prefers-reduced-motion`, or without WebGL2 float render targets, a static SVG shield is shown instead.
-- **Studio** (`src/pages/Studio.tsx`). A three-step progress strip (Parsing Requirements → Architecting Matrix → Generating Code), the QA Matrix and Playwright Code tabs (Copy Suite, Download .zip), past runs behind History, and one privacy card.
-- **Privacy card.** "0 bytes outbound" is measured: the card counts requests this browser tab makes to any host other than the studio itself. It turns amber and says so when `SENTRY_DSN` is set, because traces (and prompt previews, unless `SENTRY_SEND_DEFAULT_PII=false`) then leave the machine.
+- **Landing page** (`src/landing/`). A WebGL particle field sits fixed behind the whole page: 262,144 particles on desktop (65,536 on tablets, 16,384 on phones) held in float textures, pulled onto a signed distance field, and disturbed by a half-float stable-fluids solver that follows the cursor or a touch. It morphs between three shapes, one per stage of the product: the Cyber-Shield, the QA Matrix Lattice and the Playwright Prism checkmark. The hero's HUD switch picks the shape; further down the page the shape follows the section in view and the field dims into a backdrop. With `prefers-reduced-motion`, or without WebGL2 float render targets, a static SVG shield is shown instead.
+- **Mini-studio sandbox.** The landing page embeds the real input and output for the bundled Invoice Tracker spec (raw PRD, the 30-case matrix with category filters, the generated `.spec.ts` with copy and zip download). Its data is `src/landing/sandbox/demoSuite.json`, regenerated from the offline engine with `npm run demo:data`.
+- **Studio** (`src/pages/Studio.tsx`). A three-step progress strip (Parsing Requirements → Architecting Matrix → Generating Code), the QA Matrix and Playwright Code tabs (Copy Suite, Download .zip), past runs behind History, and one privacy receipt, over a dim colour-graded video backdrop (`public/media/studio-ambient.mp4`, served locally).
+- **Privacy receipt.** "0 Outbound Packets" is measured: it counts requests this browser tab makes to any host other than the studio itself. It turns amber and says so when `SENTRY_DSN` is set, because traces (and prompt previews, unless `SENTRY_SEND_DEFAULT_PII=false`) then leave the machine.
 - **Fonts.** Inter, Font Awesome 6.5.2 and Geist Pixel Circle are bundled, so the studio makes no third-party requests. The landing page additionally links the BubbledotICG-FinePos display face from `db.onlinewebfonts.com`; offline, its title falls back to Geist Pixel Circle.
 - **Showcase clips.** `public/media/*.mp4` are recordings of the real studio. Re-record them with `cd showreel && npm install && npm run showcase` while the app runs with `FORCE_FALLBACK=true SENTRY_DSN=` (see `showreel/record-showcase.mjs`).
 
@@ -94,11 +95,13 @@ Vite :5173 ──/api──▶ Hono :8787 ──▶ Mastra specShieldWorkflow �
 - `npm run lint` — eslint (warnings ok)
 - `npm run build` — typecheck + vite build
 - `npm run smoke` — fallback end-to-end (≥18 cases, 4 categories, real Playwright code)
+- `npm run demo:data` — regenerate the landing page's sandbox data from the offline engine
 - `npx tsx scripts/sample-run.ts` — live SSE probe printing per-step duration and tokens
 
 ## Screenshots
 
 - `docs/landing-hero.png` — landing page hero
+- `docs/landing-workflow.png` — landing page workflow section with the lattice backdrop and circuit rail
 - `docs/studio-revamp.png` — the current studio after a sample run
 - `docs/studio-overview.png` — the original studio (cover image of the DEV post; keep the file name)
 - `docs/sentry-waterfall.png` — Sentry trace waterfall

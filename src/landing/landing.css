@@ -30,25 +30,27 @@
 }
 
 /* ── Hero ───────────────────────────────────────────────────────────────── */
+/* The particle field: fixed behind the whole page, the hero's subject and every section's backdrop. */
+.shield-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
 .hero {
   position: relative;
   height: 100vh;
   height: 100svh;
   min-height: 600px;
   overflow: hidden;
-  background: var(--bg-pure);
 }
 
-.hero-canvas,
 .hero-static {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  display: block;
-}
-
-.hero-static {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -67,14 +69,14 @@
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(to top, #000 0%, rgba(0, 0, 0, 0.82) 22%, rgba(0, 0, 0, 0) 58%),
+    linear-gradient(to top, rgba(0, 0, 0, 0.86) 0%, rgba(0, 0, 0, 0.78) 24%, rgba(0, 0, 0, 0) 60%),
     linear-gradient(to bottom, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0) 18%);
 }
 @media (min-width: 1024px) {
   .hero-shade {
     background:
-      linear-gradient(to right, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.35) 34%, rgba(0, 0, 0, 0) 56%),
-      linear-gradient(to top, #000 0%, rgba(0, 0, 0, 0) 22%),
+      linear-gradient(to right, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.4) 30%, rgba(0, 0, 0, 0) 50%),
+      linear-gradient(to top, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0) 20%),
       linear-gradient(to bottom, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0) 16%);
   }
 }
@@ -94,6 +96,43 @@
   text-transform: uppercase;
   color: var(--text-dim);
   mix-blend-mode: plus-lighter;
+}
+
+/* HUD switch for the particle shape */
+.shape-switcher {
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.55);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.shape-switcher-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  transition:
+    color 200ms ease,
+    background-color 200ms ease,
+    box-shadow 200ms ease;
+}
+.shape-switcher-button:hover {
+  color: #fff;
+}
+.shape-switcher-button.is-active {
+  color: #04130d;
+  background: var(--accent-light);
+  box-shadow: 0 0 18px var(--accent-glow);
 }
 
 .cta-glow {
@@ -154,6 +193,272 @@
   transform: none;
 }
 
+/* ── Ambient atmosphere below the hero ──────────────────────────────────── */
+.landing-ambient-grid {
+  position: relative;
+  overflow-x: clip;
+  background-image:
+    radial-gradient(rgba(16, 185, 129, 0.08) 1px, transparent 1px), radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size:
+    32px 32px,
+    8px 8px;
+  background-position:
+    0 0,
+    16px 16px;
+}
+
+.ambient-bloom {
+  position: absolute;
+  width: 650px;
+  height: 450px;
+  max-width: 120vw;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.14) 0%, rgba(16, 185, 129, 0.03) 50%, transparent 70%);
+  filter: blur(60px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.landing-section {
+  position: relative;
+  scroll-margin-top: 80px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-block: 96px;
+}
+@media (min-width: 768px) {
+  .landing-section {
+    padding-block: 128px;
+  }
+}
+.landing-section > .landing-container {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Cursor spotlight ───────────────────────────────────────────────────── */
+.spotlight-card {
+  position: relative;
+}
+.spotlight-card::before,
+.spotlight-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+/* Border light: a radial gradient masked down to the 1px edge. */
+.spotlight-card::before {
+  z-index: 2;
+  padding: 1px;
+  background: radial-gradient(360px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(52, 211, 153, 0.95), rgba(52, 211, 153, 0) 60%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+.spotlight-card::after {
+  z-index: 0;
+  background: radial-gradient(520px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(16, 185, 129, 0.1), transparent 45%);
+}
+.spotlight-group:hover .spotlight-card::before,
+.spotlight-group:hover .spotlight-card::after {
+  opacity: 1;
+}
+.spotlight-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Window chrome (mini IDE cards, sandbox, browser shells) ────────────── */
+.window {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(5, 8, 12, 0.92);
+  box-shadow: 0 24px 60px -30px rgba(0, 0, 0, 0.9);
+}
+.window-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.025);
+}
+.window-lights {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+.window-lights i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.window-lights i:nth-child(1) {
+  background: #ff5f57;
+}
+.window-lights i:nth-child(2) {
+  background: #febc2e;
+}
+.window-lights i:nth-child(3) {
+  background: #28c840;
+}
+.window-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.window-badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 2px 8px;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, 0.08);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-light);
+}
+.window-badge::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+}
+.window-badge.is-recording {
+  border-color: rgba(248, 113, 113, 0.35);
+  background: rgba(248, 113, 113, 0.08);
+  color: #fca5a5;
+}
+.window-badge.is-recording::before {
+  animation: status-blink 1.6s ease-in-out infinite;
+}
+@keyframes status-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.window-url {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 7px;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.45);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.window-url span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Workflow: giant step numbers and circuit rails ─────────────────────── */
+.step-number {
+  font-family: var(--font-display);
+  font-size: clamp(64px, 7vw, 84px);
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 0 20px rgba(52, 211, 153, 0.4);
+}
+
+.circuit-rail {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+}
+.circuit-rail path {
+  fill: none;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.circuit-rail .rail-base {
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 1;
+}
+.circuit-rail .rail-draw {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.9));
+  transition: stroke-dashoffset 1800ms cubic-bezier(0.4, 0, 0.2, 1) 200ms;
+}
+.circuit-rail .rail-pulse {
+  stroke: #d1fae5;
+  stroke-width: 2.5;
+  stroke-dasharray: 0.07 0.93;
+  stroke-dashoffset: 1;
+  opacity: 0;
+  filter: drop-shadow(0 0 8px rgba(110, 231, 183, 1));
+}
+.is-visible > .circuit-rail .rail-draw {
+  stroke-dashoffset: 0;
+}
+.is-visible > .circuit-rail .rail-pulse {
+  opacity: 1;
+  animation: rail-pulse 3.2s linear 2s infinite;
+}
+@keyframes rail-pulse {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: -0.07;
+  }
+}
+
+.rail-node {
+  position: relative;
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  background: #000;
+  transition:
+    border-color 500ms ease,
+    box-shadow 500ms ease,
+    background-color 500ms ease;
+  transition-delay: var(--node-delay, 0ms);
+}
+.is-visible .rail-node {
+  border-color: var(--accent-light);
+  background: var(--accent);
+  box-shadow:
+    0 0 0 4px rgba(16, 185, 129, 0.16),
+    0 0 16px rgba(16, 185, 129, 0.9);
+}
+
 /* ── Sections ───────────────────────────────────────────────────────────── */
 .section-eyebrow {
   font-family: var(--font-mono);
@@ -175,31 +480,28 @@
   position: relative;
   border: 1px solid var(--line);
   border-radius: 18px;
-  background: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-canvas) 100%);
+  background: linear-gradient(180deg, rgba(13, 19, 31, 0.92) 0%, rgba(7, 10, 15, 0.92) 100%);
 }
 
-.video-card {
-  position: relative;
-  overflow: hidden;
-  border-radius: 18px;
-  border: 1px solid var(--line);
-  background: var(--bg-canvas);
-  aspect-ratio: 16 / 10;
+.browser-shell {
+  border-radius: 16px;
 }
-.video-card video,
-.video-card img {
+.browser-shell .window {
+  border-radius: inherit;
+}
+.browser-viewport {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  background: var(--bg-canvas);
+}
+.browser-viewport video,
+.browser-viewport img {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
   object-position: top left;
-}
-.video-card-caption {
-  position: absolute;
-  inset: auto 0 0 0;
-  padding: 56px 20px 18px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.6) 55%, rgba(0, 0, 0, 0) 100%);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -208,6 +510,12 @@
     transform: none;
   }
   .pulse-dot::after {
+    display: none;
+  }
+  .circuit-rail .rail-draw {
+    stroke-dashoffset: 0;
+  }
+  .circuit-rail .rail-pulse {
     display: none;
   }
 }

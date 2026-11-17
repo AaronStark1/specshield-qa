@@ -1,4 +1,4 @@
-import { SHIELD_SDF_GLSL } from "./sdf.ts";
+import { SCENE_SDF_GLSL } from "./sdf.ts";
 
 const HEADER = /* glsl */ `precision highp float;
 precision highp sampler2D;
@@ -16,16 +16,19 @@ void main() {
 
 /* ── Particle simulation ─────────────────────────────────────────────────── */
 
-/** Projects the CPU-sampled interior points onto the shield surface (run a few times at start-up). */
+/**
+ * Projects CPU-sampled interior points onto the surface of the shape selected by `uShapeIndex`
+ * (run a few times per shape; `uMorphProgress` stays at 1 so no blending happens).
+ */
 export const BAKE_FRAG = /* glsl */ `${HEADER}
 uniform sampler2D uSource;
 in vec2 vUv;
 out vec4 outColor;
-${SHIELD_SDF_GLSL}
+${SCENE_SDF_GLSL}
 void main() {
   vec4 src = texture(uSource, vUv);
   vec3 p = src.xyz;
-  p -= shieldGradient(p) * sdShield(p) * 0.7;
+  p -= sceneGradient(p) * sdScene(p) * 0.7;
   outColor = vec4(p, src.w);
 }
 `;
@@ -57,6 +60,7 @@ void main() {
 export const SIM_FRAG = /* glsl */ `${HEADER}
 uniform sampler2D uPos;
 uniform sampler2D uOrigin;
+uniform sampler2D uOriginPrevious;
 uniform sampler2D uFluidVelocity;
 uniform sampler2D uFluidDensity;
 uniform mat4 uViewProj;
@@ -70,10 +74,18 @@ uniform float uForm;
 uniform float uFluid;
 in vec2 vUv;
 out vec4 outColor;
-${SHIELD_SDF_GLSL}
+${SCENE_SDF_GLSL}
 void main() {
   vec4 current = texture(uPos, vUv);
   vec4 origin = texture(uOrigin, vUv);
+  // While morphing, each particle's home travels from its place on the old shape to its place on
+  // the new one. The transit factor peaks mid-morph: the surface pull lets go and the spring takes over, so
+  // the swarm flies across instead of crawling along a half-blended surface.
+  float transit = 0.0;
+  if (uMorphProgress < 1.0) {
+    origin.xyz = mix(texture(uOriginPrevious, vUv).xyz, origin.xyz, uMorphProgress);
+    transit = sin(3.14159265 * uMorphProgress);
+  }
   vec3 pos = current.xyz;
 
   // Fluid sample: project the particle to the screen and read the cursor-driven velocity field.
@@ -83,21 +95,21 @@ void main() {
   float density = texture(uFluidDensity, screenUv).r * uFluid;
   float wake = clamp(density, 0.0, 1.0);
 
-  // Pull toward the shield surface. Inside the cursor wake the pull relaxes so particles can
+  // Pull toward the shape's surface. Inside the cursor wake the pull relaxes so particles can
   // be carried off the surface, then it tightens again as the dye fades.
-  float sdf = sdShield(pos);
-  vec3 gradient = shieldGradient(pos);
-  float pull = (1.0 - pow(0.5, uStep)) * uForm * (1.0 - 0.9 * wake);
+  float sdf = sdScene(pos);
+  vec3 gradient = sceneGradient(pos);
+  float pull = (1.0 - pow(0.5, uStep)) * uForm * (1.0 - 0.9 * wake) * (1.0 - 0.92 * transit);
   pos += -gradient * sdf * pull;
 
-  // Surface curl: a slow tangential swirl around the shield.
+  // Surface curl: a slow tangential swirl around the shape.
   vec3 radial = pos / max(length(pos), 1e-4);
   vec3 normal = gradient / max(length(gradient), 1e-4);
   pos += cross(radial, normal) * 0.0006 * uStep * uForm;
 
   // Spring back to the home position.
   // 0.0002 * HZ per frame, with a healing boost so a swept area refills within about two seconds.
-  float spring = 0.0002 * uHz * uStep * mix(2.4, 1.6, uForm);
+  float spring = 0.0002 * uHz * uStep * mix(2.4, 1.6, uForm) * (1.0 + 5.0 * transit);
   pos += (origin.xyz - pos) * min(spring, 1.0);
 
   // Advect along the fluid, in the camera plane, with a little depth turbulence.
@@ -122,14 +134,14 @@ uniform float uTime;
 uniform float uOpacity;
 out vec3 vColor;
 out float vAlpha;
-${SHIELD_SDF_GLSL}
+${SCENE_SDF_GLSL}
 void main() {
   vec3 pos = texture(uPos, position.xy).xyz;
   vec4 viewPos = uView * vec4(pos, 1.0);
   gl_Position = uProjection * viewPos;
 
-  float sdf = sdShield(pos);
-  vec3 gradient = shieldGradient(pos);
+  float sdf = sdScene(pos);
+  vec3 gradient = sceneGradient(pos);
   vec3 normal = mat3(uView) * (gradient / max(length(gradient), 1e-4));
 
   // Matcap-style lighting from the view-space normal: key light upper-left, cool rim.

@@ -21,19 +21,22 @@ import {
 } from "three";
 import { FluidSim } from "./FluidSim.ts";
 import { PassRunner, PingPong, passMaterial } from "./passes.ts";
-import { SHIELD_BOUNDS, shieldSdf } from "./sdf.ts";
+import { SHAPES, sampleShapeInterior, type ShapeIndex } from "./sdf.ts";
 import { BAKE_FRAG, POINTS_FRAG, POINTS_VERT, SEED_FRAG, SIM_FRAG } from "./shaders.ts";
 
 const CAMERA_FOV = 30;
-const CAMERA_BASE = new Vector3(-1.17, 0, 6);
-/** World-space width that must stay visible so the shield never clips on narrow screens. */
-const MIN_VISIBLE_WIDTH = 1.85;
+const CAMERA_BASE = new Vector3(-0.85, 0, 4.2);
+/** World-space width that must stay visible so the widest shape never clips on narrow screens. */
+const MIN_VISIBLE_WIDTH = 1.95;
 /** Nominal refresh rate the force constants are expressed against. */
 const HZ = 60;
 const BAKE_ITERATIONS = 14;
 const INTRO_DELAY = 0.35;
 const INTRO_DURATION = 2.2;
 const MAX_IMPULSES_PER_FRAME = 12;
+const MORPH_SECONDS = 1.9;
+/** Seconds after start-up at which the shapes that are not yet baked get prepared, one per frame. */
+const PREWARM_AFTER = 3.2;
 /** A pointer sample older than this starts a new stroke instead of extending the last one. */
 const STROKE_TIMEOUT_MS = 120;
 
@@ -42,9 +45,14 @@ export interface ShieldLayout {
   width: number;
   height: number;
   pixelRatio: number;
-  /** Where the shield sits, as a fraction of the viewport away from the centre (x right, y up). */
+  /** Where the shape sits in the hero, as a fraction of the viewport away from the centre (x right, y up). */
   offsetX: number;
   offsetY: number;
+  /** Where it sits once the page has scrolled past the hero and the field is a backdrop. */
+  ambientOffsetX: number;
+  ambientOffsetY: number;
+  /** How much of its brightness the field keeps as a backdrop (lower where text sits directly over it). */
+  ambientOpacity: number;
 }
 
 interface Impulse {
@@ -64,30 +72,12 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-/** Uniformly samples points inside the shield solid; the GPU bake then projects them onto its surface. */
-function sampleInterior(count: number, random: () => number): Float32Array {
-  const data = new Float32Array(count * 4);
-  const { min, max } = SHIELD_BOUNDS;
-  let written = 0;
-  while (written < count) {
-    const x = min[0] + random() * (max[0] - min[0]);
-    const y = min[1] + random() * (max[1] - min[1]);
-    const z = min[2] + random() * (max[2] - min[2]);
-    if (shieldSdf(x, y, z) > 0) continue;
-    const i = written * 4;
-    data[i] = x;
-    data[i + 1] = y;
-    data[i + 2] = z;
-    data[i + 3] = random();
-    written += 1;
-  }
-  return data;
-}
-
 /**
- * GPGPU particle shield. Particle positions live in a float texture that is advanced every frame
+ * GPGPU particle field. Particle positions live in a float texture that is advanced every frame
  * by a fragment shader (SDF pull, surface swirl, home spring, fluid advection) and drawn as
  * additive points. The fluid is a separate screen-space solver driven by pointer movement.
+ * The field can morph between the shapes in `SHAPES`: each has its own baked home texture, and a
+ * morph blends both the distance fields and the homes.
  */
 export class ShieldField {
   readonly particleCount: number;
@@ -96,7 +86,8 @@ export class ShieldField {
   private readonly runner: PassRunner;
   private readonly fluid: FluidSim;
   private readonly positions: PingPong;
-  private readonly origin: WebGLRenderTarget;
+  private readonly origins: (WebGLRenderTarget | null)[] = SHAPES.map(() => null);
+  private readonly bake: RawShaderMaterial;
   private readonly simulate: RawShaderMaterial;
   private readonly pointsMaterial: RawShaderMaterial;
   private readonly pointsGeometry = new BufferGeometry();
@@ -114,7 +105,18 @@ export class ShieldField {
 
   private readonly pointSizeBoost: number;
   private readonly opacityBoost: number;
-  private layout: ShieldLayout = { width: 1, height: 1, pixelRatio: 1, offsetX: 0, offsetY: 0 };
+  private readonly textureSize: number;
+  private readonly positionType: TextureDataType;
+
+  private shape: ShapeIndex = 0;
+  private previousShape: ShapeIndex = 0;
+  private queuedShape: ShapeIndex | null = null;
+  private morph = 1;
+  private prewarmIndex = 1;
+  private ambient = 0;
+  private ambientTarget = 0;
+
+  private layout: ShieldLayout = { width: 1, height: 1, pixelRatio: 1, offsetX: 0, offsetY: 0, ambientOffsetX: 0, ambientOffsetY: 0, ambientOpacity: 1 };
   private cameraDistanceScale = 1;
   private frameHandle = 0;
   private lastFrameTime = 0;
@@ -129,6 +131,7 @@ export class ShieldField {
     private readonly onContextLost?: () => void,
   ) {
     this.particleCount = textureSize * textureSize;
+    this.textureSize = textureSize;
     this.renderer = new WebGLRenderer({
       canvas,
       antialias: false,
@@ -147,29 +150,20 @@ export class ShieldField {
       throw new Error("Float render targets are not supported");
     }
 
-    const random = mulberry32(0x5eed5);
-    const interior = new DataTexture(sampleInterior(this.particleCount, random), textureSize, textureSize, RGBAFormat, FloatType);
-    interior.minFilter = NearestFilter;
-    interior.magFilter = NearestFilter;
-    interior.needsUpdate = true;
+    this.positionType = positionType;
 
-    // Bake: slide the interior samples onto the surface so every particle has a home on the shield.
-    const bake = passMaterial(BAKE_FRAG, { uSource: { value: interior } });
-    this.runner = new PassRunner(this.renderer, bake);
-    const baked = new PingPong(textureSize, positionType, NearestFilter);
-    for (let i = 0; i < BAKE_ITERATIONS; i++) {
-      this.runner.run(bake, baked.write);
-      baked.swap();
-      bake.uniforms.uSource!.value = baked.read.texture;
-    }
-    this.origin = baked.read;
-    baked.write.dispose();
-    bake.dispose();
-    interior.dispose();
+    this.bake = passMaterial(BAKE_FRAG, {
+      uSource: { value: null },
+      uShapeIndex: { value: 0 },
+      uShapePrevious: { value: 0 },
+      uMorphProgress: { value: 1 },
+    });
+    this.runner = new PassRunner(this.renderer, this.bake);
+    const home = this.homeOf(0);
 
     // Seed: start every particle scattered around its home; the intro pulls the cloud together.
     this.positions = new PingPong(textureSize, positionType, NearestFilter);
-    const seed = passMaterial(SEED_FRAG, { uOrigin: { value: this.origin.texture }, uScatter: { value: 1.35 } });
+    const seed = passMaterial(SEED_FRAG, { uOrigin: { value: home.texture }, uScatter: { value: 1.35 } });
     this.runner.run(seed, this.positions.read);
     seed.dispose();
 
@@ -177,7 +171,11 @@ export class ShieldField {
 
     this.simulate = passMaterial(SIM_FRAG, {
       uPos: { value: null },
-      uOrigin: { value: this.origin.texture },
+      uOrigin: { value: home.texture },
+      uOriginPrevious: { value: home.texture },
+      uShapeIndex: { value: 0 },
+      uShapePrevious: { value: 0 },
+      uMorphProgress: { value: 1 },
       uFluidVelocity: { value: null },
       uFluidDensity: { value: null },
       uViewProj: { value: this.viewProjection },
@@ -192,6 +190,7 @@ export class ShieldField {
     });
 
     // One vertex per particle: `position.xy` is the particle's texel in the position texture.
+    const random = mulberry32(0xa11ce);
     const refs = new Float32Array(this.particleCount * 3);
     const randoms = new Float32Array(this.particleCount * 3);
     for (let i = 0; i < this.particleCount; i++) {
@@ -212,6 +211,9 @@ export class ShieldField {
       fragmentShader: POINTS_FRAG,
       uniforms: {
         uPos: { value: null },
+        uShapeIndex: { value: 0 },
+        uShapePrevious: { value: 0 },
+        uMorphProgress: { value: 1 },
         uView: { value: this.camera.matrixWorldInverse },
         uProjection: { value: this.camera.projectionMatrix },
         uPointScale: { value: 1 },
@@ -244,16 +246,34 @@ export class ShieldField {
     const baseDistance = CAMERA_BASE.length();
     const visibleWidth = 2 * Math.tan((CAMERA_FOV * Math.PI) / 360) * baseDistance * aspect;
     this.cameraDistanceScale = Math.max(1, MIN_VISIBLE_WIDTH / visibleWidth);
-    this.camera.setViewOffset(width, height, -layout.offsetX * width, layout.offsetY * height, width, height);
-    this.camera.updateProjectionMatrix();
+    this.applyViewOffset();
 
     this.fluid.setAspect(aspect);
     this.simulate.uniforms.uAspect!.value = aspect;
     // Point sizes are tuned for a 1080-pixel-tall viewport and scale with the drawing buffer.
     this.pointsMaterial.uniforms.uPointScale!.value =
-      1.9 * this.pointSizeBoost * baseDistance * ((height * pixelRatio) / 1080) * Math.sqrt(1 / this.cameraDistanceScale);
+      2.6 * this.pointSizeBoost * baseDistance * ((height * pixelRatio) / 1080) * Math.sqrt(1 / this.cameraDistanceScale);
 
     if (!this.running && !this.disposed) this.renderFrame(0);
+  }
+
+  /** The shape currently shown, or being formed. */
+  get currentShape(): ShapeIndex {
+    return this.queuedShape ?? this.shape;
+  }
+
+  /** Morphs the field into another shape. A request made mid-morph is queued until the morph lands. */
+  setShape(next: ShapeIndex): void {
+    if (this.morph < 1) {
+      this.queuedShape = next === this.shape ? null : next;
+      return;
+    }
+    this.beginMorph(next);
+  }
+
+  /** 0 while the hero owns the field, 1 once it has become the dimmed backdrop behind the page. */
+  setAmbient(amount: number): void {
+    this.ambientTarget = Math.min(1, Math.max(0, amount));
   }
 
   /** Feeds a pointer position in CSS pixels relative to the canvas. Movement becomes fluid impulses. */
@@ -295,7 +315,8 @@ export class ShieldField {
     this.canvas.removeEventListener("webglcontextlost", this.handleContextLost);
     this.fluid.dispose();
     this.positions.dispose();
-    this.origin.dispose();
+    for (const origin of this.origins) origin?.dispose();
+    this.bake.dispose();
     this.simulate.dispose();
     this.pointsMaterial.dispose();
     this.pointsGeometry.dispose();
@@ -317,9 +338,73 @@ export class ShieldField {
     this.renderFrame(dt);
   };
 
+  /** Home positions for a shape: interior samples slid onto its surface by the bake pass. Baked once. */
+  private homeOf(shape: ShapeIndex): WebGLRenderTarget {
+    const existing = this.origins[shape];
+    if (existing) return existing;
+
+    const data = sampleShapeInterior(shape, this.particleCount, mulberry32(0x5eed5 + shape * 977));
+    const interior = new DataTexture(data, this.textureSize, this.textureSize, RGBAFormat, FloatType);
+    interior.minFilter = NearestFilter;
+    interior.magFilter = NearestFilter;
+    interior.needsUpdate = true;
+
+    const uniforms = this.bake.uniforms;
+    uniforms.uSource!.value = interior;
+    uniforms.uShapeIndex!.value = shape;
+    uniforms.uShapePrevious!.value = shape;
+    const baked = new PingPong(this.textureSize, this.positionType, NearestFilter);
+    for (let i = 0; i < BAKE_ITERATIONS; i++) {
+      this.runner.run(this.bake, baked.write);
+      baked.swap();
+      uniforms.uSource!.value = baked.read.texture;
+    }
+    uniforms.uSource!.value = null;
+    baked.write.dispose();
+    interior.dispose();
+    this.origins[shape] = baked.read;
+    return baked.read;
+  }
+
+  private beginMorph(next: ShapeIndex): void {
+    if (next === this.shape) return;
+    this.homeOf(next);
+    this.previousShape = this.shape;
+    this.shape = next;
+    this.morph = 0;
+  }
+
+  private advanceMorph(dt: number): void {
+    if (this.morph < 1) {
+      this.morph = Math.min(1, this.morph + dt / MORPH_SECONDS);
+      if (this.morph >= 1) {
+        this.previousShape = this.shape;
+        const queued = this.queuedShape;
+        this.queuedShape = null;
+        if (queued !== null) this.beginMorph(queued);
+      }
+    } else if (this.elapsed > PREWARM_AFTER && this.prewarmIndex < SHAPES.length) {
+      // Bake the remaining shapes during idle frames so the first morph does not hitch.
+      this.homeOf(this.prewarmIndex as ShapeIndex);
+      this.prewarmIndex += 1;
+    }
+  }
+
+  private applyViewOffset(): void {
+    const { width, height, offsetX, offsetY, ambientOffsetX, ambientOffsetY } = this.layout;
+    const x = offsetX + (ambientOffsetX - offsetX) * this.ambient;
+    const y = offsetY + (ambientOffsetY - offsetY) * this.ambient;
+    this.camera.setViewOffset(width, height, -x * width, y * height, width, height);
+    this.camera.updateProjectionMatrix();
+  }
+
   private updateCamera(dt: number): void {
     const ease = 1 - Math.exp(-dt * 2.4);
     this.gaze.lerp(this.gazeTarget, ease);
+    if (Math.abs(this.ambientTarget - this.ambient) > 1e-4) {
+      this.ambient += (this.ambientTarget - this.ambient) * (1 - Math.exp(-dt * 5));
+      this.applyViewOffset();
+    }
     const drift = this.elapsed * 0.22;
     this.camera.position
       .copy(CAMERA_BASE)
@@ -338,6 +423,16 @@ export class ShieldField {
     this.updateCamera(dt);
 
     if (dt > 0) {
+      this.advanceMorph(dt);
+      const eased = this.morph * this.morph * (3 - 2 * this.morph);
+      for (const uniforms of [this.simulate.uniforms, this.pointsMaterial.uniforms]) {
+        uniforms.uShapeIndex!.value = this.shape;
+        uniforms.uShapePrevious!.value = this.previousShape;
+        uniforms.uMorphProgress!.value = eased;
+      }
+      this.simulate.uniforms.uOrigin!.value = this.homeOf(this.shape).texture;
+      this.simulate.uniforms.uOriginPrevious!.value = this.homeOf(this.previousShape).texture;
+
       const pending = this.impulses.splice(0, MAX_IMPULSES_PER_FRAME);
       for (const impulse of pending) this.fluid.addImpulse(impulse.point, impulse.delta, impulse.dt);
       this.fluid.step(dt);
@@ -356,7 +451,8 @@ export class ShieldField {
     const draw = this.pointsMaterial.uniforms;
     draw.uPos!.value = this.positions.read.texture;
     draw.uTime!.value = this.elapsed;
-    draw.uOpacity!.value = 0.5 * this.opacityBoost * Math.min(1, this.elapsed / 1.2);
+    const dim = 1 + (this.layout.ambientOpacity - 1) * this.ambient;
+    draw.uOpacity!.value = 0.5 * this.opacityBoost * Math.min(1, this.elapsed / 1.2) * dim;
     this.renderer.setRenderTarget(null);
     this.renderer.render(this.scene, this.camera);
   }

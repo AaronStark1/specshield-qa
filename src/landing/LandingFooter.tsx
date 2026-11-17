@@ -6,7 +6,7 @@ import { Reveal } from "./Reveal.tsx";
 
 export function LandingFooter() {
   return (
-    <footer className="border-t border-white/[0.06] bg-black">
+    <footer className="relative z-[1] border-t border-white/[0.06] bg-black/70">
       <div className="landing-container py-24 text-center md:py-28">
         <Reveal>
           <ShieldMark size={44} className="mx-auto" />

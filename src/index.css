@@ -17,8 +17,10 @@
   /* SpecShield Cyber-Shield emerald palette */
   --accent: #10b981;
   --accent-light: #34d399;
-  --accent-glow: rgba(16, 185, 129, 0.35);
+  --accent-glow: rgba(16, 185, 129, 0.4);
   --cyan-subtle: #06b6d4;
+  --amber-subtle: #f59e0b;
+  --violet-subtle: #8b5cf6;
 
   --text-primary: #ffffff;
   --text-muted: #9ca3af;
@@ -141,6 +143,54 @@ select:focus-visible {
     background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.9), transparent);
     animation: beam 1.6s ease-in-out infinite;
   }
+}
+
+/* ── Studio ambient backdrop ────────────────────────────────────────────── */
+.studio-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--bg-canvas);
+}
+/*
+ * Cyber-emerald grade. The filter chain from the design spec leaves the footage nearly grey, so an
+ * emerald layer in "color" blend mode supplies the hue while the footage keeps its own luminance.
+ * The frame is pushed down so its bright band sits below the header, where the veil is thinner.
+ */
+.bg-video {
+  position: absolute;
+  inset: 16% 0 auto 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.18;
+  filter: saturate(0.2) hue-rotate(95deg) brightness(0.65) contrast(1.2);
+  mix-blend-mode: screen;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 16%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 16%);
+}
+.studio-ambient-tint {
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  mix-blend-mode: color;
+  opacity: 0.6;
+}
+/* Obsidian veil: 85% canvas at the top, fading down so the footage breathes below the header. */
+.studio-ambient-veil {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(7, 10, 15, 0.85) 0%, rgba(7, 10, 15, 0.4) 34%, rgba(7, 10, 15, 0.2) 100%);
+}
+.studio-shell .panel {
+  background-color: rgba(13, 19, 31, 0.84);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
 }
 
 /* ── Reduced motion ─────────────────────────────────────────────────────── */

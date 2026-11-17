@@ -6,8 +6,9 @@ import { DOCS_URL } from "../../lib/links.ts";
 import { CONTAINER } from "../../lib/layout.ts";
 import { Link } from "../../lib/router.tsx";
 import { Badge } from "../ui/Badge.tsx";
+import { EngineStatusPill } from "./EngineStatusPill.tsx";
 
-/** Studio header: brand, a way back to the overview, and nothing else. */
+/** Studio header: brand, the engine indicator, and a way back to the overview. */
 export function Header() {
   useCommandShortcuts();
   const running = usePipelineStore((s) => s.running);
@@ -15,13 +16,11 @@ export function Header() {
   return (
     <header className="glass sticky top-0 z-40 border-b border-edge">
       <div className={`${CONTAINER} flex h-14 items-center gap-4`}>
-        <Link to="/" className="flex min-w-0 items-center gap-2.5 rounded-md" aria-label="SpecShield — overview">
+        <Link to="/" className="flex shrink-0 items-center gap-2.5 rounded-md" aria-label="SpecShield QA — overview">
           <ShieldMark size={24} />
-          <span className="text-[17px] font-bold leading-none tracking-tight text-white">SPECSHIELD</span>
-          <span className="hidden border-l border-edge-strong pl-2.5 font-mono text-[11px] uppercase tracking-[0.14em] text-fg-muted sm:inline">
-            Local QA Studio
-          </span>
+          <span className="text-[17px] font-bold leading-none tracking-tight text-white">SpecShield QA</span>
         </Link>
+        <EngineStatusPill className="min-w-0" />
 
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
           {running && (

@@ -12,6 +12,7 @@
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.server.json --noEmit",
     "start": "NODE_ENV=production tsx --env-file-if-exists=.env server/index.ts",
     "smoke": "FORCE_FALLBACK=true tsx scripts/smoke.ts",
+    "demo:data": "tsx scripts/build-demo-suite.ts",
     "lint": "eslint ."
   },
   "dependencies": {

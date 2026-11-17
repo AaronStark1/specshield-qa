@@ -59,11 +59,8 @@ export function MetricsSection() {
   const active = useInView(barRef, { threshold: 0.3, once: true });
 
   return (
-    <section
-      id="security"
-      className="relative scroll-mt-20 border-t border-white/[0.06] bg-[var(--bg-canvas)] py-24 md:py-32"
-      aria-labelledby="metrics-title"
-    >
+    <section id="security" className="landing-section" aria-labelledby="metrics-title">
+      <div className="ambient-bloom -right-32 top-16" aria-hidden />
       <div className="landing-container">
         <Reveal>
           <p className="section-eyebrow">Privacy &amp; ROI</p>
@@ -75,7 +72,7 @@ export function MetricsSection() {
         <Reveal delay={100}>
           <dl
             ref={barRef}
-            className="mt-12 grid overflow-hidden rounded-[18px] border border-white/[0.08] bg-[var(--bg-surface)] sm:grid-cols-2 lg:grid-cols-4"
+            className="mt-12 grid overflow-hidden rounded-[18px] border border-white/[0.08] bg-[rgba(13,19,31,0.9)] sm:grid-cols-2 lg:grid-cols-4"
           >
             {METRICS.map((metric) => (
               <div
