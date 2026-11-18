@@ -4,6 +4,15 @@ Local-first studio that turns a pasted PRD into **structured requirements**, a *
 
 Three **Mastra** agents run on **Google Gemma locally through Ollama**, traced with **Sentry Agent Tracing**. No Ollama? The app still runs in a polished **deterministic fallback mode**. No Sentry DSN? Spans become no-ops and nothing leaves the machine.
 
+<p align="center">
+  <a href="docs/specshield-showreel.mp4"><img src="docs/specshield-showreel-thumb.jpg" width="100%" alt="SpecShield QA showreel: the SpecShield lockup and the tagline Keep the spec, ship the suite, beside the particle shield with a play button in its ring"></a>
+</p>
+
+<p align="center">
+  <b><a href="docs/specshield-showreel.mp4">▶ Watch the 40-second reel</a></b> (1080p60, with sound) · <a href="docs/specshield-showreel-web.mp4">720p version, 9 MB</a><br>
+  <sub>Filmed from the running app: the landing page's particle shield, then a real offline run in the studio, from spec to Playwright suite.</sub>
+</p>
+
 ## Quick start
 
 ```bash
@@ -87,6 +96,7 @@ Vite :5173 ──/api──▶ Hono :8787 ──▶ Mastra specShieldWorkflow �
 - **Privacy receipt.** "0 Outbound Packets" is measured: it counts requests this browser tab makes to any host other than the studio itself. It turns amber and says so when `SENTRY_DSN` is set, because traces (and prompt previews, unless `SENTRY_SEND_DEFAULT_PII=false`) then leave the machine.
 - **Fonts.** Inter, Font Awesome 6.5.2 and Geist Pixel Circle are bundled, so the studio makes no third-party requests. The landing page additionally links the BubbledotICG-FinePos display face from `db.onlinewebfonts.com`; offline, its title falls back to Geist Pixel Circle.
 - **Showcase clips.** `public/media/*.mp4` are recordings of the real studio. Re-record them with `cd showreel && npm install && npm run showcase` while the app runs with `FORCE_FALLBACK=true SENTRY_DSN=` (see `showreel/record-showcase.mjs`).
+- **Showreel.** The reel at the top of this page is filmed from the app itself, not mocked up. `showreel/capture.mjs` drives the landing page and the studio frame by frame under a virtual clock, following the shot list in `showreel/shots.mjs`. Then `npm run render` composes the shots with the transitions, titles and the generated score, and encodes `docs/specshield-showreel.mp4` and its 720p web cut. Run the capture against a private stack whose `DATA_DIR` is a new, empty folder, because the studio reopens the latest run on load. The exact commands are at the top of `capture.mjs`.
 
 ## Scripts
 
@@ -98,8 +108,11 @@ Vite :5173 ──/api──▶ Hono :8787 ──▶ Mastra specShieldWorkflow �
 - `npm run demo:data` — regenerate the landing page's sandbox data from the offline engine
 - `npx tsx scripts/sample-run.ts` — live SSE probe printing per-step duration and tokens
 
-## Screenshots
+## Screenshots and reel
 
+- `docs/specshield-showreel.mp4` — the 40-second reel, 1080p60 with sound
+- `docs/specshield-showreel-web.mp4` — the same reel at 720p30, under GitHub's 10 MB upload limit for READMEs, issues and PRs
+- `docs/specshield-showreel-thumb.jpg` — the reel's end-card frame with a play button, used as the thumbnail above
 - `docs/landing-hero.png` — landing page hero
 - `docs/landing-workflow.png` — landing page workflow section with the lattice backdrop and circuit rail
 - `docs/studio-revamp.png` — the current studio after a sample run

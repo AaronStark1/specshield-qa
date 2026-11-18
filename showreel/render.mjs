@@ -1,19 +1,19 @@
 #!/usr/bin/env node
 /**
- * Renders the 15-second SpecShield QA showreel (showreel.html) to ../docs/specshield-showreel.mp4.
+ * Renders the 40-second SpecShield QA reel (showreel.html) to ../docs/specshield-showreel.mp4.
  *
  *   npm install                          # once, inside showreel/
- *   npm run render                       # full render: 900 frames x 3 subframes, tmix, mux
- *   npm run beats                        # pre-flight: one frame per beat (t = 0.0, 0.5 ... 14.5) + contact sheet
- *   node render.mjs --beats --offset .25 # the same, a quarter beat later
- *   node render.mjs --at 2.5,10.62       # single frames at the given seconds
- *   node render.mjs --range 9,10,0.05    # a strip of frames from 9 s to 10 s, as a contact sheet
- *   npm run audio                        # the soundtrack only
- *   npm run preview                      # serve http://127.0.0.1:4173/showreel.html?scrub
+ *   node capture.mjs                     # film the shots from the running app (see capture.mjs)
+ *   npm run render                       # compose 2,400 frames, render the score, encode
+ *   npm run beats                        # review: one frame per beat (80) on a contact sheet
+ *   node render.mjs --at 4.5,18.6        # review: single frames at these seconds
+ *   node render.mjs --range 15,17,0.1    # review: a strip of frames as a contact sheet
+ *   npm run audio                        # the score only
+ *   node render.mjs --encode             # re-encode the last render's frames and WAV
  *
- * Frames come from Playwright's Chromium: window.seek(t) renders second t, each frame is shot as
- * three PNG subframes (t - 5.5 ms, t, t + 5.5 ms) that ffmpeg's tmix blends into motion blur, then
- * the frames are muxed with the WAV the page renders through OfflineAudioContext.
+ * Writes the master (1080p60) and a web cut under 10 MB (720p30, for GitHub README uploads) beside it.
+ * Each output frame averages three captured subframes (motion blur) inside the page's WebGL
+ * compositor; frames are written as JPEG, then muxed with the WAV the page renders offline.
  */
 import http from "node:http";
 import os from "node:os";
@@ -25,35 +25,34 @@ import { chromium } from "playwright-core";
 import ffmpegPath from "ffmpeg-static";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const appAssets = path.resolve(here, "..", "src", "assets");
 const outDir = path.join(here, "out");
 const target = path.resolve(here, "..", "docs", "specshield-showreel.mp4");
-const PAGE = "showreel.html";
-const FPS = 60,
-  DUR = 15,
-  SUB = 3,
-  SUB_DT = 0.0055,
-  W = 1920,
-  H = 1080;
+const webTarget = target.replace(/\.mp4$/, "-web.mp4");
+/** GitHub's README attachment limit is 10 MB on free plans; leave headroom for the container. */
+const WEB_BYTES = 9.4 * 1024 * 1024;
+const FPS = 60;
+const W = 1920, H = 1080;
 const TYPES = {
   ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json",
   ".woff2": "font/woff2",
-  ".js": "text/javascript",
-  ".css": "text/css",
+  ".jpg": "image/jpeg",
+  ".png": "image/png",
 };
 
-/** Serves showreel/ (the page and the Inter font from node_modules) on 127.0.0.1. */
+/** Serves showreel/ (page, score, fonts, captured shots) and the app's bundled fonts. */
 function serve(port = 0) {
   const server = http.createServer((req, res) => {
     const url = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
-    const file = path.join(here, url === "/" ? PAGE : url);
-    if (!file.startsWith(here + path.sep) || !existsSync(file)) {
+    const [base, rel] = url.startsWith("/app-assets/") ? [appAssets, url.slice("/app-assets".length)] : [here, url === "/" ? "/showreel.html" : url];
+    const file = path.join(base, rel);
+    if (!file.startsWith(base + path.sep) || !existsSync(file)) {
       res.writeHead(404).end();
       return;
     }
-    res.writeHead(200, {
-      "content-type": TYPES[path.extname(file)] ?? "application/octet-stream",
-      "cache-control": "no-store",
-    });
+    res.writeHead(200, { "content-type": TYPES[path.extname(file)] ?? "application/octet-stream", "cache-control": "no-store" });
     createReadStream(file).pipe(res);
   });
   return new Promise((resolve) => server.listen(port, "127.0.0.1", () => resolve(server)));
@@ -61,8 +60,9 @@ function serve(port = 0) {
 
 async function openPages(count, url) {
   const browser = await chromium.launch({
+    channel: "chromium",
     headless: true,
-    args: ["--force-color-profile=srgb", "--hide-scrollbars", "--font-render-hinting=none", "--disable-lcd-text"],
+    args: ["--use-angle=metal", "--enable-gpu", "--ignore-gpu-blocklist", "--force-color-profile=srgb", "--hide-scrollbars"],
   });
   const pages = await Promise.all(
     [...Array(count)].map(async () => {
@@ -70,16 +70,20 @@ async function openPages(count, url) {
       page.on("pageerror", (e) => console.error("page error:", e.message));
       page.on("console", (m) => m.type() === "error" && console.error("console:", m.text()));
       await page.goto(url, { waitUntil: "load" });
-      await page.waitForFunction(() => window.__ready === true, null, { timeout: 60000 });
+      await page.waitForFunction(() => window.__ready === true || window.__error, null, { timeout: 120000 });
+      const err = await page.evaluate(() => window.__error);
+      if (err) throw new Error(err);
       return page;
-    })
+    }),
   );
+  const face = await pages[0].evaluate(() => window.displayFace);
+  if (face !== "BubbledotICG-FinePos") console.warn(`display face unavailable, titles fall back to ${face}`);
   return { browser, pages };
 }
 
-async function shot(page, t, file) {
-  await page.evaluate((tt) => window.seek(tt), t);
-  await page.screenshot({ path: file, type: "png", caret: "hide" });
+async function frame(page, k, file) {
+  await page.evaluate((i) => window.renderFrame(i), k);
+  await page.screenshot({ path: file, type: "jpeg", quality: 97 });
 }
 
 function run(cmd, args) {
@@ -89,6 +93,9 @@ function run(cmd, args) {
   });
 }
 const ffmpeg = (args) => run(ffmpegPath, ["-hide_banner", "-loglevel", "error", "-y", ...args]);
+/** JPEG frames are full-range BT.601; browsers expect tagged BT.709 for HD, or colours shift. */
+const TO_709 = "scale=in_color_matrix=bt601:in_range=full:out_color_matrix=bt709:out_range=tv";
+const TAG_709 = ["-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv"];
 
 async function renderAudio(page) {
   const b64 = await page.evaluate(() => window.renderAudio());
@@ -97,131 +104,108 @@ async function renderAudio(page) {
   return file;
 }
 
-/** Renders frames at the given times into dir and tiles them into one contact sheet. */
-async function sheet(page, times, dir, sheetFile, cols = 5) {
+/** Frames at the given times, tiled into one contact sheet. */
+async function sheet(page, times, name, cols = 5) {
+  const dir = path.join(outDir, "review", name);
   await fs.rm(dir, { recursive: true, force: true });
   await fs.mkdir(dir, { recursive: true });
-  for (let i = 0; i < times.length; i++) {
-    await shot(page, times[i], path.join(dir, `${String(i + 1).padStart(3, "0")}-t${times[i].toFixed(2)}.png`));
-  }
-  // ffmpeg's image2 pattern needs plain sequential names; tile from symlink-free copies
-  const seq = path.join(dir, "seq");
-  await fs.mkdir(seq, { recursive: true });
-  const files = (await fs.readdir(dir)).filter((f) => f.endsWith(".png")).sort();
-  await Promise.all(files.map((f, i) => fs.copyFile(path.join(dir, f), path.join(seq, `${String(i + 1).padStart(3, "0")}.png`))));
+  for (let i = 0; i < times.length; i++) await frame(page, Math.round(times[i] * FPS), path.join(dir, `${String(i).padStart(3, "0")}.jpg`));
   const rows = Math.ceil(times.length / cols);
-  await ffmpeg([
-    "-framerate", "1",
-    "-i", path.join(seq, "%03d.png"),
-    "-vf", `scale=640:360,tile=${cols}x${rows}:padding=8:margin=8:color=0x222222`,
-    "-frames:v", "1",
-    sheetFile,
-  ]);
-  await fs.rm(seq, { recursive: true, force: true });
+  const file = path.join(outDir, "review", `${name}.jpg`);
+  await ffmpeg(["-framerate", "1", "-i", path.join(dir, "%03d.jpg"), "-vf", `scale=480:270,tile=${cols}x${rows}:padding=6:margin=6:color=0x222222`, "-frames:v", "1", file]);
+  return file;
 }
 
 async function main() {
   const argv = process.argv.slice(2);
-  const flag = (name) => argv.includes(name);
-  const value = (name) => {
-    const i = argv.indexOf(name);
+  const flag = (n) => argv.includes(n);
+  const value = (n) => {
+    const i = argv.indexOf(n);
     return i >= 0 ? argv[i + 1] : undefined;
   };
-  await fs.mkdir(outDir, { recursive: true });
-
-  if (flag("--preview")) {
-    await serve(4173);
-    console.log(`Scrub the reel at http://127.0.0.1:4173/${PAGE}?scrub`);
-    return new Promise(() => {});
-  }
+  await fs.mkdir(path.join(outDir, "review"), { recursive: true });
+  if (!existsSync(path.join(outDir, "shots", "S", "meta.json"))) throw new Error("No captured shots: run `node capture.mjs` first.");
 
   const server = await serve();
-  const url = `http://127.0.0.1:${server.address().port}/${PAGE}`;
-  const review = flag("--beats") || value("--at") || value("--range") || flag("--audio");
-  const workers = review ? 1 : Math.max(2, Math.min(8, os.cpus().length - 2));
+  const url = `http://127.0.0.1:${server.address().port}/showreel.html`;
+  const review = flag("--beats") || value("--at") || value("--range") || flag("--audio") || flag("--encode");
+  const workers = review ? 1 : Math.max(2, Math.min(6, os.cpus().length - 4));
   const { browser, pages } = await openPages(workers, url);
   try {
-    if (flag("--audio")) {
-      console.log("audio:", await renderAudio(pages[0]));
-      return;
-    }
-
+    if (flag("--audio")) return console.log("audio:", await renderAudio(pages[0]));
     if (value("--at")) {
       for (const t of value("--at").split(",").map(Number)) {
-        const file = path.join(outDir, `frame-${t.toFixed(3)}.png`);
-        await shot(pages[0], t, file);
+        const file = path.join(outDir, "review", `frame-${t.toFixed(2)}.jpg`);
+        await frame(pages[0], Math.round(t * FPS), file);
         console.log(file);
       }
       return;
     }
-
     if (value("--range")) {
       const [a, b, step] = value("--range").split(",").map(Number);
       const times = [];
       for (let t = a; t <= b + 1e-9; t += step) times.push(Math.round(t * 1000) / 1000);
-      const file = path.join(outDir, `range-${a}-${b}.jpg`);
-      await sheet(pages[0], times, path.join(outDir, "range"), file, Number(value("--cols") ?? 5));
-      console.log("range sheet:", file);
-      return;
+      return console.log("range sheet:", await sheet(pages[0], times, `range-${a}-${b}`, Number(value("--cols") ?? 5)));
     }
-
     if (flag("--beats")) {
-      const offset = Number(value("--offset") ?? 0);
-      const times = [...Array(DUR * 2)].map((_, i) => i * 0.5 + offset);
-      const file = path.join(outDir, `beats-sheet${offset ? "-" + offset : ""}.jpg`);
-      await sheet(pages[0], times, path.join(outDir, "beats"), file);
-      console.log("beats:", path.join(outDir, "beats"), "\nsheet:", file);
-      return;
+      const offset = Number(value("--offset") ?? 0.25);
+      const times = [...Array(80)].map((_, i) => i * 0.5 + offset);
+      return console.log("beats sheet:", await sheet(pages[0], times, "beats", 8));
     }
 
-    // Full render: 60 fps x 3 subframes centred on each frame's time.
+    // Full render (or, with --encode, just the encode of the last render)
     const frames = path.join(outDir, "frames");
-    await fs.rm(frames, { recursive: true, force: true });
-    await fs.mkdir(frames, { recursive: true });
-    const total = FPS * DUR * SUB;
-    const timeOf = (i) => Math.max(0, Math.floor(i / SUB) / FPS + ((i % SUB) - (SUB - 1) / 2) * SUB_DT);
-    let next = 0,
-      done = 0;
     const started = Date.now();
-    await Promise.all(
-      pages.map(async (page) => {
-        for (let i = next++; i < total; i = next++) {
-          await shot(page, timeOf(i), path.join(frames, `${String(i).padStart(5, "0")}.png`));
-          if (++done % 270 === 0) console.log(`  ${done}/${total} subframes, ${((Date.now() - started) / 1000).toFixed(0)}s`);
-        }
-      })
-    );
-    const wav = await renderAudio(pages[0]);
+    let wav = path.join(outDir, "specshield-showreel.wav");
+    if (!flag("--encode")) {
+      await fs.rm(frames, { recursive: true, force: true });
+      await fs.mkdir(frames, { recursive: true });
+      const total = await pages[0].evaluate(() => window.FRAMES);
+      let next = 0, done = 0;
+      await Promise.all(
+        pages.map(async (page) => {
+          for (let k = next++; k < total; k = next++) {
+            await frame(page, k, path.join(frames, `${String(k).padStart(5, "0")}.jpg`));
+            if (++done % 240 === 0) console.log(`  ${done}/${total} frames, ${((Date.now() - started) / 1000).toFixed(0)}s`);
+          }
+        }),
+      );
+      wav = await renderAudio(pages[0]);
+    }
     await fs.mkdir(path.dirname(target), { recursive: true });
-    // tmix averages each run of three subframes; select keeps the frame that closes each run.
     await ffmpeg([
-      "-framerate", String(FPS * SUB),
-      "-i", path.join(frames, "%05d.png"),
+      "-framerate", String(FPS),
+      "-i", path.join(frames, "%05d.jpg"),
       "-i", wav,
-      "-filter_complex",
-      `[0:v]tmix=frames=${SUB}:weights='1 1 1',select='eq(mod(n\\,${SUB})\\,${SUB - 1})',setpts=N/(${FPS}*TB),` +
-        "scale=out_color_matrix=bt709:out_range=tv:flags=accurate_rnd+full_chroma_int,format=yuv420p[v]",
-      "-map", "[v]",
+      "-map", "0:v",
       "-map", "1:a",
-      "-r", String(FPS),
+      "-vf", `${TO_709},format=yuv420p`,
       "-c:v", "libx264",
       "-preset", "slow",
-      "-crf", value("--crf") ?? "18",
+      "-crf", value("--crf") ?? "22",
       "-profile:v", "high",
       "-level", "4.2",
       "-g", "120",
-      "-colorspace", "bt709",
-      "-color_primaries", "bt709",
-      "-color_trc", "bt709",
-      "-color_range", "tv",
+      ...TAG_709,
       "-c:a", "aac",
       "-b:a", "192k",
-      "-t", String(DUR),
+      "-t", "40",
       "-movflags", "+faststart",
       target,
     ]);
     const { size } = await fs.stat(target);
     console.log(`video: ${target} (${(size / 1048576).toFixed(2)} MB, ${((Date.now() - started) / 1000).toFixed(0)}s)`);
+
+    // Web cut: 720p30, two-pass to a bitrate that lands under the README upload limit.
+    const audioKbps = 96;
+    const videoKbps = Math.floor((WEB_BYTES * 8) / 40 / 1000 - audioKbps - 40);
+    const webIn = ["-framerate", String(FPS), "-i", path.join(frames, "%05d.jpg")];
+    const webOut = ["-vf", `fps=30,scale=1280:720:flags=lanczos,${TO_709},format=yuv420p`, "-c:v", "libx264", "-preset", "slow", "-b:v", `${videoKbps}k`, "-profile:v", "high", "-g", "60", ...TAG_709];
+    const passlog = path.join(outDir, "web-pass");
+    await ffmpeg([...webIn, ...webOut, "-pass", "1", "-passlogfile", passlog, "-an", "-t", "40", "-f", "mp4", os.devNull]);
+    await ffmpeg([...webIn, "-i", wav, ...webOut, "-map", "0:v", "-map", "1:a", "-pass", "2", "-passlogfile", passlog, "-c:a", "aac", "-b:a", `${audioKbps}k`, "-t", "40", "-movflags", "+faststart", webTarget]);
+    const webSize = (await fs.stat(webTarget)).size;
+    console.log(`web cut: ${webTarget} (${(webSize / 1048576).toFixed(2)} MB)`);
   } finally {
     await browser.close();
     server.close();
