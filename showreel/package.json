@@ -2,10 +2,11 @@
   "name": "specshield-showreel",
   "private": true,
   "type": "module",
-  "description": "Films the real SpecShield QA app under virtual time (capture.mjs) and composes the 40-second reel (showreel.html) to ../docs/specshield-showreel.mp4 with Playwright and ffmpeg; also records the landing page's showcase clips.",
+  "description": "Films the real SpecShield QA app under virtual time (capture.mjs), composes the 40-second reel (showreel.html) to ../docs/specshield-showreel.mp4 and cuts the README media (readme-media.mjs) into ../docs/readme/ with Playwright and ffmpeg; also records the landing page's showcase clips.",
   "scripts": {
     "capture": "node capture.mjs",
     "render": "node render.mjs",
+    "readme": "node readme-media.mjs",
     "beats": "node render.mjs --beats",
     "audio": "node render.mjs --audio",
     "showcase": "node record-showcase.mjs"
